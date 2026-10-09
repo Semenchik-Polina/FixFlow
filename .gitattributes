@@ -1,0 +1,27 @@
+# Normalize all text files to LF in the repository and in working trees
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+# Binary files
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.heic  binary
+*.pdf   binary
+*.zip   binary
+*.woff  binary
+*.woff2 binary
+*.pfx   binary
+*.p12   binary
+
+# Generated code: collapse in diffs and exclude from language stats
+web/src/api/generated/** linguist-generated=true -diff
+**/Migrations/*.Designer.cs linguist-generated=true -diff
+**/Migrations/*ModelSnapshot.cs linguist-generated=true -diff
+package-lock.json linguist-generated=true -diff

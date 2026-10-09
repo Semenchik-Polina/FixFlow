@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Secrets and local configuration — never commit
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.local.json
+appsettings.*.local.json
+
+# Certificates and keys (dev certs are generated locally, see T0.11)
+certs/
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+
+# ---------------------------------------------------------------------------
+# .NET
+# ---------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+TestResults/
+*.trx
+coverage*.json
+coverage*.xml
+*.coverage
+*.coveragexml
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.vs/
+*.nupkg
+*.snupkg
+artifacts/
+
+# ---------------------------------------------------------------------------
+# Node / frontend / E2E
+# ---------------------------------------------------------------------------
+node_modules/
+web/dist/
+web/coverage/
+*.tsbuildinfo
+.vite/
+npm-debug.log*
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Claude Code: personal settings stay local; shared .claude/settings.json is tracked
+.claude/settings.local.json

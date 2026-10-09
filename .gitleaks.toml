@@ -1,0 +1,8 @@
+# gitleaks configuration — used by `.githooks/pre-commit` and CI (T0.5).
+# Starts from the built-in rule set. Add allowlist entries only for known,
+# public, non-secret values (e.g. the Azurite well-known dev key), each with a comment.
+
+title = "FixFlow gitleaks config"
+
+[extend]
+useDefault = true

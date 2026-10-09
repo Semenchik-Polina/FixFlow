@@ -1,0 +1,17 @@
+#!/bin/sh
+# Blocks commits that contain secrets (S21).
+# Enable once per clone:  git config core.hooksPath .githooks
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed, so staged changes can't be scanned for secrets." >&2
+  echo "Install it (https://github.com/gitleaks/gitleaks#installing) and commit again." >&2
+  exit 1
+fi
+
+gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "pre-commit: gitleaks found a possible secret in the staged changes. Remove it before committing." >&2
+  exit "$status"
+fi
