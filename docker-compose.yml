@@ -1,0 +1,96 @@
+# Local infrastructure for FixFlow (ARCHITECTURE §20).
+#   cp .env.example .env   # then set every value
+#   docker compose up -d --wait
+# Ports are published on 127.0.0.1 only. Credentials come only from .env (S21, S22).
+# Image tags are pinned exactly; Dependabot proposes updates (PostgreSQL majors are manual, ARCHITECTURE §20).
+
+name: fixflow
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      # Read by the init script
+      FIXFLOW_DB_NAME: ${FIXFLOW_DB_NAME:?set FIXFLOW_DB_NAME in .env}
+      FIXFLOW_DB_USER: ${FIXFLOW_DB_USER:?set FIXFLOW_DB_USER in .env}
+      FIXFLOW_DB_PASSWORD: ${FIXFLOW_DB_PASSWORD:?set FIXFLOW_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # From 18 the image keeps each major version's cluster in /var/lib/postgresql/<major>/docker
+      - postgres-data:/var/lib/postgresql
+      # Runs only when the cluster is empty; `docker compose down -v` to run it again
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP, not the socket: during init the server listens on the socket only, so this stays
+      # unhealthy until the init script has finished
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    # Blob service only. 0.0.0.0 is the listen address inside the container; the host port is on 127.0.0.1.
+    # No AZURITE_ACCOUNTS: the well-known development account keeps account keys out of the repo.
+    command:
+      - azurite-blob
+      - --blobHost=0.0.0.0
+      - --location=/data
+      - --loose
+      - --skipApiVersionCheck
+      - --disableTelemetry
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - azurite-data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "10000"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "127.0.0.1:1025:1025" # SMTP
+      - "127.0.0.1:8025:8025" # UI and API
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  seq:
+    image: datalust/seq:2026.1.17182
+    environment:
+      ACCEPT_EULA: "Y"
+      # Applied only on the first start with an empty volume; `docker compose down -v` to reset
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_FIRSTRUN_ADMINPASSWORD:?set SEQ_FIRSTRUN_ADMINPASSWORD in .env}
+    ports:
+      # Container port 80 serves the UI, ingestion and OTLP (/ingest/otlp); its port 5341 is ingestion only
+      - "127.0.0.1:5341:80"
+    volumes:
+      - seq-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  azurite-data:
+  mailpit-data:
+  seq-data:

@@ -223,7 +223,7 @@ Api (endpoints, hubs)  →  Application (commands, queries, validators)  →  Do
 | Backend | .NET 10, ASP.NET Core Minimal APIs, SignalR |
 | Application | MediatR **12.x** (last Apache-2.0 line, ADR 0004), FluentValidation |
 | Domain | Stateless (request and work-order state machines), NodaTime |
-| Persistence | EF Core + Npgsql, `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, PostgreSQL 16+ |
+| Persistence | EF Core + Npgsql, `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, PostgreSQL 18+ (upgrades: §20) |
 | Identity | ASP.NET Core Identity (cookie auth) |
 | Messaging | RabbitMQ + MassTransit (with EF Core outbox) |
 | Cache / realtime scale-out | Redis 7+, `HybridCache`, SignalR StackExchangeRedis backplane |
@@ -716,7 +716,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 | Service | Image | Ports (host) | Phase |
 |---|---|---|---|
-| `postgres` | `postgres:16` | 5432 | MVP |
+| `postgres` | `postgres:18` (exact tag: see below) | 5432 | MVP |
 | `azurite` | `mcr.microsoft.com/azure-storage/azurite` | 10000 (blob) | MVP |
 | `mailpit` | `axllent/mailpit` | 1025 (SMTP), 8025 (UI) | MVP |
 | `seq` | `datalust/seq` | 5341 (UI + ingestion/OTLP) | MVP |
@@ -737,6 +737,26 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `localhost`); a `.env.example` documents Compose variables.
 - Migrations applied automatically in Development; demo seed data loaded.
 - Secrets via `dotnet user-secrets`.
+
+### PostgreSQL versions and upgrades
+
+- **Version:** PostgreSQL 18 on the Debian image, pinned to an exact patch and Debian release in `docker-compose.yml`
+  (started on `postgres:18.6-trixie`). Testcontainers uses the same tag; the two always change together.
+- **Data volume:** mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`. From 18 the image keeps each major
+  version's cluster in `/var/lib/postgresql/<major>/docker`, so the old and new clusters can sit side by side in one
+  volume during an upgrade.
+- **Patch updates** (18.6 → 18.7) arrive as Dependabot PRs. The on-disk format doesn't change: pull the image and recreate the container.
+- **Major upgrades** (18 → 19) are deliberate, and Dependabot ignores them. The new image starts an **empty** cluster
+  next to the old one, so the data has to be carried over:
+  1. Run the backend tests against the new major first (change the Testcontainers tag).
+  2. Local data is synthetic: `docker compose down -v` and start again; the init script, migrations and seed rebuild it.
+  3. To keep local data instead: `pg_dump -Fc` the app database inside the container, copy the file out with
+     `docker compose cp` (don't redirect binary output through PowerShell), switch the tag, and `pg_restore` it after the
+     init script has recreated the role and database. `pg_upgrade --link` inside the shared volume is the faster route for large data.
+  4. Change the tag in Compose and Testcontainers, and the major version in this section, in the same PR.
+- **Debian release:** changing it (e.g. `trixie` → its successor) can change glibc collation rules and invalidate text
+  indexes. Treat it like a major upgrade: run `REINDEX DATABASE` and `ALTER DATABASE ... REFRESH COLLATION VERSION` afterwards.
+- **Hosting** (end of Phase 2) needs a provider that offers PostgreSQL 18 or newer.
 
 ### Environments
 
@@ -798,7 +818,7 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 
 | Dependency | Purpose | Needed from | Local |
 |---|---|---|---|
-| PostgreSQL 16+ | System of record, outbox | MVP | Compose |
+| PostgreSQL 18+ | System of record, outbox | MVP | Compose |
 | Azurite (Azure Blob Storage emulator) | Attachments, thumbnails | MVP | Compose |
 | Mailpit (SMTP) | Invites, password reset, notifications | MVP | Compose |
 | Seq | Logs and traces | MVP | Compose |
