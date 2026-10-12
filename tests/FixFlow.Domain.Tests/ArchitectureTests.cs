@@ -19,5 +19,5 @@ public class ArchitectureTests
 
     // CI check (T0.5), never merged: a failing test must fail the Test step
     [Fact]
-    public void Ci_Check_FailsOnPurpose() => Assert.Fail("CI check: this test fails on purpose");
+    public void Ci_Check_FailsOnPurpose() => Assert.Fail("CI check: this test fails on purpose (second push)");
 }
