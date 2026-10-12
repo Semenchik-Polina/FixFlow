@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.5
+**Status:** approved 2026-10-09 · **Next task:** T0.6
 
 ## Context
 
@@ -160,7 +160,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - The architecture tests fail on a forbidden reference, checked by temporarily adding one: Domain → anything except NodaTime/Stateless, or Application → Infrastructure/Api.
   - A known-vulnerable package fails restore.
 
-- [ ] **T0.5 CI pipeline (backend + secrets)** · M
+- [x] **T0.5 CI pipeline (backend + secrets)** · M
   Scope:
   - GitHub Actions on PRs and `main`: restore/build/test (Testcontainers on the runner), NuGet audit, gitleaks.
   - Caching and cancelling superseded runs.
