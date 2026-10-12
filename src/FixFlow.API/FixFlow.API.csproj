@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FixFlow.Application\FixFlow.Application.csproj" />
+    <ProjectReference Include="..\FixFlow.Hosting\FixFlow.Hosting.csproj" />
+    <ProjectReference Include="..\FixFlow.Infrastructure\FixFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

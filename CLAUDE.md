@@ -38,13 +38,13 @@ Redis (cache + SignalR backplane) · RabbitMQ/MassTransit (Phase 2) · Azure Blo
 docker compose up -d
 
 # Backend
-dotnet build FixFlow.sln
-dotnet test FixFlow.sln
+dotnet build FixFlow.slnx
+dotnet test FixFlow.slnx
 dotnet test tests/FixFlow.Domain.Tests --filter "FullyQualifiedName~WorkOrder"   # prefer focused runs
-dotnet run --project src/FixFlow.Api
+dotnet run --project src/FixFlow.API
 
 # Migrations
-dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-project src/FixFlow.Api
+dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API
 
 # Frontend (from web/)
 npm run dev

@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.2
+**Status:** approved 2026-10-09 · **Next task:** T0.6
 
 ## Context
 
@@ -25,6 +25,7 @@ decision in the tables below.
 | P2 | **Tenant-facing status:** Received (Submitted, UnderReview, Accepted + WO New) → Technician assigned (Assigned) → In progress (InProgress, OnHold, Completed) → Done (request Closed), plus Rejected and Cancelled. "Scheduled" comes back with scheduling in Phase 2. Tenants get email for **request rejected** and **request closed** only; nothing is sent at Completed. | ADR 0002 |
 | P3 | **Email confirmation (S4) is deferred to Phase 2.** Signup logs the user straight in. Accepting an invite marks the email as confirmed. Accepted risk while the app runs locally only. | ADR 0003 |
 | P4 | **MediatR is pinned to 12.x** (the last Apache-2.0 line). Dependabot ignores ≥ 13. | ADR 0004 |
+| P5 | **PostgreSQL 18** (pinned to `18.6-trixie`) instead of 16, for support until Nov 2030. Patch updates come through Dependabot; major upgrades are deliberate and follow a documented procedure. Decided 2026-10-11, before T0.3. | ARCHITECTURE §20 |
 
 ## Assumptions (approved with this plan)
 
@@ -45,6 +46,7 @@ If one turns out wrong, change it here, and in its ADR if it has one.
 | A11 | CSRF (S2): a SameSite=Lax cookie, JSON-only bodies and same origin (Vite proxy in dev, no CORS) make antiforgery tokens unnecessary. Invite and reset tokens travel in the URL **fragment**, so they never reach server logs. |
 | A12 | Libraries: MailKit (SMTP), NodaTime.Serialization.SystemTextJson, NodaTime.Testing (`FakeClock`), `Microsoft.Extensions.ApiDescription.Server` (OpenAPI document at build time), xUnit v3 with its built-in `Assert` (FluentAssertions v8+ needs a commercial licence). Integration tests stay isolated by creating their own organizations, so no DB-reset library is needed. |
 | A13 | Only tenants submit requests (no submitting on someone's behalf). Only the submitter can cancel. Requests can't be edited after submission. |
+| A14 | The app's database role owns the `fixflow` database, so EF Core migrations can create the per-module schemas. It is not a superuser and can't create databases or roles. Separate migration and runtime roles (the stricter reading of S22) wait until hosting. |
 
 **Gaps noted, kept as documented (revisit if they cause trouble):**
 - Reassign is only allowed from Assigned (§7). If a technician drops out mid-job, the manager must cancel and re-accept.
@@ -120,7 +122,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Four ADRs (Context → Decision → Consequences), status Accepted.
   - Re-reading the touched sections finds no contradiction left on triage, tenant statuses, the email list, S4, MediatR or event dispatch.
 
-- [ ] **T0.2 Repository bootstrap** · S
+- [x] **T0.2 Repository bootstrap** · S
   Scope:
   - `git init` on `main`.
   - Config files: `.gitignore` (.NET, Node, `.env`, certs), `.gitattributes` (LF), `.editorconfig`.
@@ -134,28 +136,31 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - The repo is public with the MIT licence detected, and GitHub accepts the Dependabot config.
   - Merges are squash-only. Branch protection is added once CI exists (T0.5).
 
-- [ ] **T0.3 Docker Compose infrastructure** · S
-  Scope: `docker-compose.yml` with `postgres:16`, Azurite, Mailpit and Seq. Tags pinned, health checks, named volumes, ports
+  Note: until their manifests exist, the Dependabot runs for github-actions (T0.5), docker-compose (T0.3),
+  npm (T0.10) and docker (T0.11) fail with "not found". That is expected, not a config error.
+
+- [x] **T0.3 Docker Compose infrastructure** · S
+  Scope: `docker-compose.yml` with `postgres:18.6-trixie` (volume at `/var/lib/postgresql`, ARCHITECTURE §20), Azurite, Mailpit and Seq. Tags pinned, health checks, named volumes, ports
   bound to `127.0.0.1`, credentials only from `.env`. An init script creates a database and a non-superuser app role.
   DoD:
   - `docker compose up -d --wait` → all four services are healthy; `down -v` followed by `up` recreates them cleanly.
   - Tracked files contain no credential literals and nothing binds to `0.0.0.0`. The app role is not a superuser.
   - Mailpit (:8025) and Seq (:5341) are reachable.
 
-- [ ] **T0.4 Backend solution skeleton** · M
+- [x] **T0.4 Backend solution skeleton** · M
   Scope:
-  - `FixFlow.sln` with Domain, Application, Infrastructure, Api, Contracts and Hosting, plus the Domain.Tests, Application.Tests and Api.IntegrationTests projects.
+  - `FixFlow.slnx` with Domain, Application, Infrastructure, API, Contracts and Hosting, plus the Domain.Tests, Application.Tests and API.IntegrationTests projects.
   - `Directory.Build.props`: net10.0, nullable, warnings as errors, analyzers, NuGet audit.
   - Package versions pinned centrally.
   - Project references per `src/CLAUDE.md` §1.
   - Architecture tests based on reflection.
 
   DoD:
-  - `dotnet build FixFlow.sln -v q` → 0 warnings; `dotnet test` green.
+  - `dotnet build FixFlow.slnx -v q` → 0 warnings; `dotnet test` green.
   - The architecture tests fail on a forbidden reference, checked by temporarily adding one: Domain → anything except NodaTime/Stateless, or Application → Infrastructure/Api.
   - A known-vulnerable package fails restore.
 
-- [ ] **T0.5 CI pipeline (backend + secrets)** · M
+- [x] **T0.5 CI pipeline (backend + secrets)** · M
   Scope:
   - GitHub Actions on PRs and `main`: restore/build/test (Testcontainers on the runner), NuGet audit, gitleaks.
   - Caching and cancelling superseded runs.
@@ -180,7 +185,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T0.7 Test infrastructure** · M
   Scope:
   - xUnit v3.
-  - Postgres and Azurite Testcontainers, shared per test run.
+  - Postgres and Azurite Testcontainers on the same image tags as `docker-compose.yml`, shared per test run.
   - `FixFlowApiFactory` (`WebApplicationFactory`) with `FakeClock`, an in-memory email sink and a test log sink.
   - `TestData.*` builders and client helpers (cookie + `X-Organization`), extended as each slice lands.
 

@@ -12,7 +12,7 @@ Background: `ARCHITECTURE.md` §4, §7–§15.
 | `FixFlow.Domain` | Entities, value objects, state machines, domain events, domain errors | NodaTime, Stateless only |
 | `FixFlow.Application` | Commands/queries, handlers, validators, authorization handlers, interfaces (`IBlobStorage`, `IEmailSender`, ...) | Domain |
 | `FixFlow.Infrastructure` | EF Core `DbContext`, configurations, migrations, interceptors, Identity stores, Blob, Email, Redis, MassTransit | Application, Domain |
-| `FixFlow.Api` | Endpoint mapping, SignalR hubs, auth setup, Problem Details, DI composition, serves SPA in prod | all of the above |
+| `FixFlow.API` | Endpoint mapping, SignalR hubs, auth setup, Problem Details, DI composition, serves SPA in prod | all of the above |
 | `FixFlow.Contracts` | Integration event records shared with workers | nothing |
 | `FixFlow.Hosting` | Shared Serilog, OpenTelemetry, health checks, resilience setup | — |
 | `FixFlow.Workers.*` | Phase 2 background workers | Contracts, Hosting, Application/Infrastructure as needed |
@@ -36,7 +36,7 @@ FixFlow.Application/WorkOrders/
 ├─ WorkOrderAuthorizationHandler.cs
 └─ WorkOrderQueryExtensions.cs        # .VisibleTo(user)
 
-FixFlow.Api/Endpoints/WorkOrderEndpoints.cs   # MapGroup("/api/v1/work-orders")
+FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # MapGroup("/api/v1/work-orders")
 ```
 
 - Endpoints are thin: bind → `sender.Send(command)` → map result to `TypedResults`. No business logic in endpoints.
@@ -140,7 +140,7 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 |---|---|---|
 | Domain rule / transition | `tests/FixFlow.Domain.Tests` | Cover every transition × role (allowed and denied) |
 | Handler / validator / auth handler | `tests/FixFlow.Application.Tests` | |
-| Endpoint | `tests/FixFlow.Api.IntegrationTests` | `WebApplicationFactory` + Testcontainers; include a **cross-tenant** test (other org's record → 404; member of A but not B; suspended membership; wrong `X-Organization`) |
+| Endpoint | `tests/FixFlow.API.IntegrationTests` | `WebApplicationFactory` + Testcontainers; include a **cross-tenant** test (other org's record → 404; member of A but not B; suspended membership; wrong `X-Organization`) |
 | Time logic | Domain tests | `FakeClock`; weekends, holidays, both DST transitions |
 
 - Test naming: `Method_Scenario_ExpectedResult`.

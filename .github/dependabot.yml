@@ -50,3 +50,7 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # PostgreSQL major upgrades are deliberate and need a data migration (ARCHITECTURE §20)
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]

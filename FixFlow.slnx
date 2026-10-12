@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="nuget.config" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FixFlow.API/FixFlow.API.csproj" />
+    <Project Path="src/FixFlow.Application/FixFlow.Application.csproj" />
+    <Project Path="src/FixFlow.Contracts/FixFlow.Contracts.csproj" />
+    <Project Path="src/FixFlow.Domain/FixFlow.Domain.csproj" />
+    <Project Path="src/FixFlow.Hosting/FixFlow.Hosting.csproj" />
+    <Project Path="src/FixFlow.Infrastructure/FixFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FixFlow.API.IntegrationTests/FixFlow.API.IntegrationTests.csproj" />
+    <Project Path="tests/FixFlow.Application.Tests/FixFlow.Application.Tests.csproj" />
+    <Project Path="tests/FixFlow.Domain.Tests/FixFlow.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

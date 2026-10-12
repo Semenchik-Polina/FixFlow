@@ -171,7 +171,7 @@ Each decision below should have a corresponding ADR in `docs/adr/NNNN-title.md` 
                     HTTPS REST        WebSocket (SignalR)
                            ▼               ▼
             ┌──────────────────────────────────────────┐
-            │        FixFlow.Api (ASP.NET Core)        │
+            │        FixFlow.API (ASP.NET Core)        │
             │  Endpoints → MediatR → Domain → EF Core  │
             │  SignalR hubs · Outbox · Auth            │
             │  MassTransit consumer: RealtimePusher    │
@@ -223,7 +223,7 @@ Api (endpoints, hubs)  →  Application (commands, queries, validators)  →  Do
 | Backend | .NET 10, ASP.NET Core Minimal APIs, SignalR |
 | Application | MediatR **12.x** (last Apache-2.0 line, ADR 0004), FluentValidation |
 | Domain | Stateless (request and work-order state machines), NodaTime |
-| Persistence | EF Core + Npgsql, `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, PostgreSQL 16+ |
+| Persistence | EF Core + Npgsql, `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, PostgreSQL 18+ (upgrades: §20) |
 | Identity | ASP.NET Core Identity (cookie auth) |
 | Messaging | RabbitMQ + MassTransit (with EF Core outbox) |
 | Cache / realtime scale-out | Redis 7+, `HybridCache`, SignalR StackExchangeRedis backplane |
@@ -246,7 +246,7 @@ FixFlow/
 │  └─ adr/                          # architecture decision records
 ├─ src/
 │  ├─ FixFlow.Hosting/              # shared OpenTelemetry, Serilog, health checks, resilience setup
-│  ├─ FixFlow.Api/                  # endpoints, hubs, auth, DI composition, serves SPA in prod
+│  ├─ FixFlow.API/                  # endpoints, hubs, auth, DI composition, serves SPA in prod
 │  ├─ FixFlow.Application/          # commands, queries, validators, interfaces (per module folders)
 │  ├─ FixFlow.Domain/               # entities, value objects, state machines, domain events
 │  ├─ FixFlow.Infrastructure/       # EF Core, Identity stores, Redis, MassTransit, Blob, Email
@@ -263,7 +263,7 @@ FixFlow/
 └─ tests/
    ├─ FixFlow.Domain.Tests/
    ├─ FixFlow.Application.Tests/
-   ├─ FixFlow.Api.IntegrationTests/
+   ├─ FixFlow.API.IntegrationTests/
    └─ web-e2e/                      # Playwright
 ```
 
@@ -625,7 +625,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - **Dates:** formatted in the property's time zone via `Intl.DateTimeFormat`.
 - **Auth:** cookie-based; the SPA calls `GET /api/v1/me` on load (user + list of memberships with roles). All app routes live under `/:orgSlug/...`; the HTTP client sends `X-Organization` from the current URL; an organization switcher in the header changes the slug.
 - Responsive layout; the technician view is mobile-first.
-- **Production-like hosting** (Compose `full` profile): the built SPA is served by `FixFlow.Api` (same origin → no CORS, cookies work for REST and SignalR). In development, Vite proxies `/api` and `/hubs` to the API.
+- **Production-like hosting** (Compose `full` profile): the built SPA is served by `FixFlow.API` (same origin → no CORS, cookies work for REST and SignalR). In development, Vite proxies `/api` and `/hubs` to the API.
 
 ---
 
@@ -716,7 +716,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 | Service | Image | Ports (host) | Phase |
 |---|---|---|---|
-| `postgres` | `postgres:16` | 5432 | MVP |
+| `postgres` | `postgres:18` (exact tag: see below) | 5432 | MVP |
 | `azurite` | `mcr.microsoft.com/azure-storage/azurite` | 10000 (blob) | MVP |
 | `mailpit` | `axllent/mailpit` | 1025 (SMTP), 8025 (UI) | MVP |
 | `seq` | `datalust/seq` | 5341 (UI + ingestion/OTLP) | MVP |
@@ -728,7 +728,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - Default workflow — infrastructure in containers, code on the host (fast rebuilds, debugger):
   ```bash
   docker compose up -d
-  dotnet run --project src/FixFlow.Api
+  dotnet run --project src/FixFlow.API
   cd web && npm run dev
   ```
 - `docker compose --profile full up` also builds and runs the API and workers as containers (used for E2E tests and demoing).
@@ -737,6 +737,26 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `localhost`); a `.env.example` documents Compose variables.
 - Migrations applied automatically in Development; demo seed data loaded.
 - Secrets via `dotnet user-secrets`.
+
+### PostgreSQL versions and upgrades
+
+- **Version:** PostgreSQL 18 on the Debian image, pinned to an exact patch and Debian release in `docker-compose.yml`
+  (started on `postgres:18.6-trixie`). Testcontainers uses the same tag; the two always change together.
+- **Data volume:** mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`. From 18 the image keeps each major
+  version's cluster in `/var/lib/postgresql/<major>/docker`, so the old and new clusters can sit side by side in one
+  volume during an upgrade.
+- **Patch updates** (18.6 → 18.7) arrive as Dependabot PRs. The on-disk format doesn't change: pull the image and recreate the container.
+- **Major upgrades** (18 → 19) are deliberate, and Dependabot ignores them. The new image starts an **empty** cluster
+  next to the old one, so the data has to be carried over:
+  1. Run the backend tests against the new major first (change the Testcontainers tag).
+  2. Local data is synthetic: `docker compose down -v` and start again; the init script, migrations and seed rebuild it.
+  3. To keep local data instead: `pg_dump -Fc` the app database inside the container, copy the file out with
+     `docker compose cp` (don't redirect binary output through PowerShell), switch the tag, and `pg_restore` it after the
+     init script has recreated the role and database. `pg_upgrade --link` inside the shared volume is the faster route for large data.
+  4. Change the tag in Compose and Testcontainers, and the major version in this section, in the same PR.
+- **Debian release:** changing it (e.g. `trixie` → its successor) can change glibc collation rules and invalidate text
+  indexes. Treat it like a major upgrade: run `REINDEX DATABASE` and `ALTER DATABASE ... REFRESH COLLATION VERSION` afterwards.
+- **Hosting** (end of Phase 2) needs a provider that offers PostgreSQL 18 or newer.
 
 ### Environments
 
@@ -798,7 +818,7 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 
 | Dependency | Purpose | Needed from | Local |
 |---|---|---|---|
-| PostgreSQL 16+ | System of record, outbox | MVP | Compose |
+| PostgreSQL 18+ | System of record, outbox | MVP | Compose |
 | Azurite (Azure Blob Storage emulator) | Attachments, thumbnails | MVP | Compose |
 | Mailpit (SMTP) | Invites, password reset, notifications | MVP | Compose |
 | Seq | Logs and traces | MVP | Compose |
