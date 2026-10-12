@@ -86,4 +86,4 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then range="$BASE_SHA..$HEAD_SHA"; else range="HEAD"; fi
-          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --no-banner --log-opts="$range" .
+          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --verbose --no-banner --log-opts="$range" .
