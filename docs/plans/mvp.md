@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.4
+**Status:** approved 2026-10-09 · **Next task:** T0.5
 
 ## Context
 
@@ -147,16 +147,16 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Tracked files contain no credential literals and nothing binds to `0.0.0.0`. The app role is not a superuser.
   - Mailpit (:8025) and Seq (:5341) are reachable.
 
-- [ ] **T0.4 Backend solution skeleton** · M
+- [x] **T0.4 Backend solution skeleton** · M
   Scope:
-  - `FixFlow.sln` with Domain, Application, Infrastructure, Api, Contracts and Hosting, plus the Domain.Tests, Application.Tests and Api.IntegrationTests projects.
+  - `FixFlow.slnx` with Domain, Application, Infrastructure, API, Contracts and Hosting, plus the Domain.Tests, Application.Tests and API.IntegrationTests projects.
   - `Directory.Build.props`: net10.0, nullable, warnings as errors, analyzers, NuGet audit.
   - Package versions pinned centrally.
   - Project references per `src/CLAUDE.md` §1.
   - Architecture tests based on reflection.
 
   DoD:
-  - `dotnet build FixFlow.sln -v q` → 0 warnings; `dotnet test` green.
+  - `dotnet build FixFlow.slnx -v q` → 0 warnings; `dotnet test` green.
   - The architecture tests fail on a forbidden reference, checked by temporarily adding one: Domain → anything except NodaTime/Stateless, or Application → Infrastructure/Api.
   - A known-vulnerable package fails restore.
 

@@ -171,7 +171,7 @@ Each decision below should have a corresponding ADR in `docs/adr/NNNN-title.md` 
                     HTTPS REST        WebSocket (SignalR)
                            ▼               ▼
             ┌──────────────────────────────────────────┐
-            │        FixFlow.Api (ASP.NET Core)        │
+            │        FixFlow.API (ASP.NET Core)        │
             │  Endpoints → MediatR → Domain → EF Core  │
             │  SignalR hubs · Outbox · Auth            │
             │  MassTransit consumer: RealtimePusher    │
@@ -246,7 +246,7 @@ FixFlow/
 │  └─ adr/                          # architecture decision records
 ├─ src/
 │  ├─ FixFlow.Hosting/              # shared OpenTelemetry, Serilog, health checks, resilience setup
-│  ├─ FixFlow.Api/                  # endpoints, hubs, auth, DI composition, serves SPA in prod
+│  ├─ FixFlow.API/                  # endpoints, hubs, auth, DI composition, serves SPA in prod
 │  ├─ FixFlow.Application/          # commands, queries, validators, interfaces (per module folders)
 │  ├─ FixFlow.Domain/               # entities, value objects, state machines, domain events
 │  ├─ FixFlow.Infrastructure/       # EF Core, Identity stores, Redis, MassTransit, Blob, Email
@@ -263,7 +263,7 @@ FixFlow/
 └─ tests/
    ├─ FixFlow.Domain.Tests/
    ├─ FixFlow.Application.Tests/
-   ├─ FixFlow.Api.IntegrationTests/
+   ├─ FixFlow.API.IntegrationTests/
    └─ web-e2e/                      # Playwright
 ```
 
@@ -625,7 +625,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - **Dates:** formatted in the property's time zone via `Intl.DateTimeFormat`.
 - **Auth:** cookie-based; the SPA calls `GET /api/v1/me` on load (user + list of memberships with roles). All app routes live under `/:orgSlug/...`; the HTTP client sends `X-Organization` from the current URL; an organization switcher in the header changes the slug.
 - Responsive layout; the technician view is mobile-first.
-- **Production-like hosting** (Compose `full` profile): the built SPA is served by `FixFlow.Api` (same origin → no CORS, cookies work for REST and SignalR). In development, Vite proxies `/api` and `/hubs` to the API.
+- **Production-like hosting** (Compose `full` profile): the built SPA is served by `FixFlow.API` (same origin → no CORS, cookies work for REST and SignalR). In development, Vite proxies `/api` and `/hubs` to the API.
 
 ---
 
@@ -728,7 +728,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - Default workflow — infrastructure in containers, code on the host (fast rebuilds, debugger):
   ```bash
   docker compose up -d
-  dotnet run --project src/FixFlow.Api
+  dotnet run --project src/FixFlow.API
   cd web && npm run dev
   ```
 - `docker compose --profile full up` also builds and runs the API and workers as containers (used for E2E tests and demoing).
