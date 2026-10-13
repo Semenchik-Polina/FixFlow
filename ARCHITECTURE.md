@@ -682,7 +682,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 - **Logging:** Serilog, structured JSON, enriched with `TraceId`, `OrganizationId`, `UserId` (ids only, no personal data).
 - **Tracing and metrics:** OpenTelemetry across API, EF Core, HTTP, Redis and MassTransit; trace context propagates through messages.
-- **Local:** **Seq** (Docker Compose) receives structured logs and OTLP traces from the API and workers.
+- **Local:** **Seq** (Docker Compose) receives structured logs, and OTLP traces and metrics, from the API and workers.
 - **Production-like (Compose `full` profile):** also Seq. A hosted backend is chosen together with hosting (end of Phase 2).
 - **Health checks:** `/health/live` and `/health/ready` (Postgres, Redis, RabbitMQ, Blob).
 - **Key metrics/alerts:** API error rate and p95 latency, outbox backlog, DLQ depth, SLA breaches, failed email sends.
@@ -734,7 +734,8 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 - `docker compose --profile full up` also builds and runs the API and workers as containers (used for E2E tests and demoing).
   From Phase 2: `docker compose --profile full up --scale api=2` runs two API replicas behind an `nginx` reverse proxy
   (sticky sessions off) to verify the SignalR Redis backplane and stateless API behavior.
-- Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `localhost`); a `.env.example` documents Compose variables.
+- Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `127.0.0.1`,
+  where Compose publishes the ports); the database password comes only from `Database:Password` (user-secrets). A `.env.example` documents Compose variables.
 - Migrations applied automatically in Development; demo seed data loaded.
 - Secrets via `dotnet user-secrets`.
 
@@ -843,6 +844,7 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 - `Serilog.AspNetCore`, `OpenTelemetry.*`
 - `AspNetCore.HealthChecks.*` (NpgSql, Redis, RabbitMQ, Azure Storage)
 - `Serilog.Sinks.Seq`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`
+- `Serilog.Enrichers.Sensitive` (log masking, S26)
 - Tests: `xunit`, `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `Testcontainers.RabbitMq`, `Testcontainers.Azurite`
 
 **Frontend**

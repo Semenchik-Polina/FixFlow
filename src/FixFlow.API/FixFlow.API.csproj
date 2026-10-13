@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <UserSecretsId>0e969e6d-daea-4b47-b3d4-4b4f23a2d740</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FixFlow.Application\FixFlow.Application.csproj" />
     <ProjectReference Include="..\FixFlow.Hosting\FixFlow.Hosting.csproj" />

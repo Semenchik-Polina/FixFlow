@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.6
+**Status:** approved 2026-10-09 · **Next task:** T0.7
 
 ## Context
 
@@ -170,7 +170,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Green on a PR. A compile warning, a failing test and a planted fake secret each fail the right job (checked once).
   - Branch protection requires the CI checks.
 
-- [ ] **T0.6 Observability & health** · M
+- [x] **T0.6 Observability & health** · M
   Scope, all in `FixFlow.Hosting`:
   - Serilog (JSON console + Seq) enriched with TraceId, OrganizationId and UserId.
   - A masking policy for sensitive properties (S26).
