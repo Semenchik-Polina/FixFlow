@@ -3,7 +3,8 @@
 A multi-tenant maintenance work-order platform: tenants submit requests → managers triage and assign →
 technicians complete the work → managers close it.
 
-> **Status:** early development (MVP, Phase 1). Only the local infrastructure runs so far — see the [MVP plan](docs/plans/mvp.md).
+> **Status:** early development (MVP, Phase 1). The local infrastructure and an API skeleton (logging, tracing,
+> health checks) run so far — see the [MVP plan](docs/plans/mvp.md).
 
 ## Stack
 
@@ -54,7 +55,35 @@ Every port is bound to `127.0.0.1`. The database init script and Seq's first-run
 after changing them in `.env`, run `docker compose down -v`. If port 5432 is taken, stop the local PostgreSQL service.
 PostgreSQL upgrades are described in [ARCHITECTURE.md §20](ARCHITECTURE.md#20-local-development-and-deployment).
 
-Running the API and SPA is documented here as those pieces land (plan M0).
+### API
+
+Once, with the infrastructure running:
+
+1. In Seq, create an API key for the API: Settings → API Keys → Add API Key, with the **Ingest** permission only.
+2. Store the local secrets (kept in your user profile, outside the repository):
+
+   ```bash
+   dotnet user-secrets set "Database:Password" "<FIXFLOW_DB_PASSWORD from .env>" --project src/FixFlow.API
+   dotnet user-secrets set "Seq:ApiKey" "<Seq API key>" --project src/FixFlow.API
+   ```
+
+   If you changed `FIXFLOW_DB_NAME` or `FIXFLOW_DB_USER` in `.env`, also set `ConnectionStrings:FixFlow`
+   (`Host=127.0.0.1;Port=5432;Database=<name>;Username=<user>`, without the password).
+
+Then:
+
+```bash
+dotnet run --project src/FixFlow.API --launch-profile http   # http://localhost:5250
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `/health/live` | 200 while the process runs |
+| `/health/ready` | 200 when PostgreSQL and Blob Storage are reachable, otherwise 503 |
+
+Logs go to the console as JSON and to Seq; traces and metrics go to Seq over OTLP.
+
+Running the SPA is documented here when it lands (plan M0).
 
 ## Contributing
 
