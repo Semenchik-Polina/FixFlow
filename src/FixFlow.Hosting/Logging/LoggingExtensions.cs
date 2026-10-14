@@ -15,7 +15,8 @@ public static class LoggingExtensions
 {
     /// <summary>
     /// Serilog for the host. Levels come from the <c>Serilog</c> configuration section; sinks and enrichers are set
-    /// here, so configuration can't remove the masking. The static <see cref="Log.Logger"/> stays the bootstrap
+    /// here, so configuration can't remove the masking. Sinks and enrichers registered in DI (the tests' log sink) are
+    /// added too and get the same enriched, masked events. The static <see cref="Log.Logger"/> stays the bootstrap
     /// logger: the app logs through DI, which keeps several test hosts in one process independent.
     /// </summary>
     public static IHostApplicationBuilder AddFixFlowSerilog(this IHostApplicationBuilder builder, string applicationName)
@@ -23,8 +24,10 @@ public static class LoggingExtensions
         var configuration = builder.Configuration;
 
         builder.Services.AddSerilog(
-            (_, logger) => logger
+            (services, logger) => logger
                 .ReadFrom.Configuration(configuration)
+                // Before the FixFlow enrichers, so masking still runs after any enricher from DI
+                .ReadFrom.Services(services)
                 .WriteToFixFlowSinks(configuration)
                 .EnrichWithFixFlowDefaults(applicationName),
             preserveStaticLogger: true);

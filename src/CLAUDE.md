@@ -145,4 +145,10 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 
 - Test naming: `Method_Scenario_ExpectedResult`.
 - Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
+- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
+  constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
+  cookies, no redirects); `.WithOrganization(slug)` sets `X-Organization`.
+- Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
+  resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
+- The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.
 - Run focused: `dotnet test <project> --filter "FullyQualifiedName~<Name>"`.

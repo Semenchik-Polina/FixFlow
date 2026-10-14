@@ -742,19 +742,21 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 ### PostgreSQL versions and upgrades
 
 - **Version:** PostgreSQL 18 on the Debian image, pinned to an exact patch and Debian release in `docker-compose.yml`
-  (started on `postgres:18.6-trixie`). Testcontainers uses the same tag; the two always change together.
+  (started on `postgres:18.6-trixie`). Testcontainers reads the tag from `docker-compose.yml`, so the tests always
+  run on the Compose image and a Dependabot bump is tested on its own PR.
 - **Data volume:** mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`. From 18 the image keeps each major
   version's cluster in `/var/lib/postgresql/<major>/docker`, so the old and new clusters can sit side by side in one
   volume during an upgrade.
 - **Patch updates** (18.6 → 18.7) arrive as Dependabot PRs. The on-disk format doesn't change: pull the image and recreate the container.
 - **Major upgrades** (18 → 19) are deliberate, and Dependabot ignores them. The new image starts an **empty** cluster
   next to the old one, so the data has to be carried over:
-  1. Run the backend tests against the new major first (change the Testcontainers tag).
+  1. Run the backend tests against the new major first: change the tag in `docker-compose.yml` on the upgrade branch and
+     run `dotnet test` before recreating the local containers (Testcontainers follows the tag).
   2. Local data is synthetic: `docker compose down -v` and start again; the init script, migrations and seed rebuild it.
   3. To keep local data instead: `pg_dump -Fc` the app database inside the container, copy the file out with
      `docker compose cp` (don't redirect binary output through PowerShell), switch the tag, and `pg_restore` it after the
      init script has recreated the role and database. `pg_upgrade --link` inside the shared volume is the faster route for large data.
-  4. Change the tag in Compose and Testcontainers, and the major version in this section, in the same PR.
+  4. Change the tag in Compose and the major version in this section in the same PR.
 - **Debian release:** changing it (e.g. `trixie` → its successor) can change glibc collation rules and invalidate text
   indexes. Treat it like a major upgrade: run `REINDEX DATABASE` and `ALTER DATABASE ... REFRESH COLLATION VERSION` afterwards.
 - **Hosting** (end of Phase 2) needs a provider that offers PostgreSQL 18 or newer.
@@ -845,7 +847,8 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 - `AspNetCore.HealthChecks.*` (NpgSql, Redis, RabbitMQ, Azure Storage)
 - `Serilog.Sinks.Seq`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`
 - `Serilog.Enrichers.Sensitive` (log masking, S26)
-- Tests: `xunit`, `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `Testcontainers.RabbitMq`, `Testcontainers.Azurite`
+- Tests: `xunit`, `Microsoft.AspNetCore.Mvc.Testing`, `NodaTime.Testing`, `Testcontainers.PostgreSql`,
+  `Testcontainers.Redis`, `Testcontainers.RabbitMq`, `Testcontainers.Azurite`
 
 **Frontend**
 
