@@ -1,16 +1,29 @@
 using System.Net;
+using FixFlow.API.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace FixFlow.API.IntegrationTests.Hosting;
 
-public class HealthEndpointTests
+public class HealthEndpointTests(FixFlowApiFactory api)
 {
+    [Fact]
+    public async Task HealthReady_InfrastructureUp_Returns200()
+    {
+        using var client = api.CreateApiClient();
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        using var ready = await client.GetAsync(new Uri("/health/ready", UriKind.Relative), cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        Assert.Equal("Healthy", await ready.Content.ReadAsStringAsync(cancellationToken));
+    }
+
     [Fact]
     public async Task HealthEndpoints_PostgresUnreachable_LiveIs200AndReadyIs503()
     {
-        // "Testing", not the factory's default "Development": no Seq or OTLP settings, no user-secrets.
-        // Nothing listens on port 1. The "200 with Postgres up" case is the T0.7 smoke test.
+        // Its own host, not the shared one: Postgres must be down. "Testing", not the factory's default
+        // "Development": no Seq or OTLP settings, no user-secrets. Nothing listens on port 1.
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
             .UseEnvironment("Testing")
             .UseSetting("ConnectionStrings:FixFlow", "Host=127.0.0.1;Port=1;Database=fixflow;Username=fixflow_app;Timeout=2")

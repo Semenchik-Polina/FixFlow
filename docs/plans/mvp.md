@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.7
+**Status:** approved 2026-10-09 · **Next task:** T0.8
 
 ## Context
 
@@ -26,6 +26,8 @@ decision in the tables below.
 | P3 | **Email confirmation (S4) is deferred to Phase 2.** Signup logs the user straight in. Accepting an invite marks the email as confirmed. Accepted risk while the app runs locally only. | ADR 0003 |
 | P4 | **MediatR is pinned to 12.x** (the last Apache-2.0 line). Dependabot ignores ≥ 13. | ADR 0004 |
 | P5 | **PostgreSQL 18** (pinned to `18.6-trixie`) instead of 16, for support until Nov 2030. Patch updates come through Dependabot; major upgrades are deliberate and follow a documented procedure. Decided 2026-10-11, before T0.3. | ARCHITECTURE §20 |
+| P6 | **Testcontainers reads its image tags from `docker-compose.yml`** (copied to the test output), so the tests can't drift from Compose and a Dependabot image bump runs the integration tests on its own PR. Decided 2026-10-13, in T0.7. | ARCHITECTURE §20 |
+| P7 | **`IEmailSender` + `EmailMessage` are defined in Application in T0.7**, without an implementation, so the test factory can swap in the in-memory sink. T1.4 adds the MailKit sender and templates behind the same interface. Decided 2026-10-13. | this plan (T0.7, T1.4) |
 
 ## Assumptions (approved with this plan)
 
@@ -182,7 +184,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - A test logs an object with `Email`, `Token` and `Password` properties, and the output shows masked values.
   - `/health/ready` returns 503 with Postgres stopped and 200 when it's up; `/health/live` always returns 200.
 
-- [ ] **T0.7 Test infrastructure** · M
+- [x] **T0.7 Test infrastructure** · M
   Scope:
   - xUnit v3.
   - Postgres and Azurite Testcontainers on the same image tags as `docker-compose.yml`, shared per test run.

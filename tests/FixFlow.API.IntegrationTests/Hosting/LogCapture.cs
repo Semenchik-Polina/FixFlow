@@ -1,10 +1,8 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
+using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.Hosting.Logging;
 using Serilog;
-using Serilog.Core;
-using Serilog.Events;
 using Serilog.Formatting.Compact;
 
 namespace FixFlow.API.IntegrationTests.Hosting;
@@ -17,7 +15,7 @@ internal static class LogCapture
     /// </summary>
     public static JsonElement Render(Action<ILogger> write)
     {
-        var sink = new CollectingSink();
+        var sink = new TestLogSink();
         using (var logger = new LoggerConfiguration().EnrichWithFixFlowDefaults("test").WriteTo.Sink(sink).CreateLogger())
         {
             write(logger);
@@ -28,13 +26,4 @@ internal static class LogCapture
         using var json = JsonDocument.Parse(writer.ToString());
         return json.RootElement.Clone();
     }
-}
-
-internal sealed class CollectingSink : ILogEventSink
-{
-    private readonly ConcurrentQueue<LogEvent> _events = new();
-
-    public IReadOnlyCollection<LogEvent> Events => _events;
-
-    public void Emit(LogEvent logEvent) => _events.Enqueue(logEvent);
 }

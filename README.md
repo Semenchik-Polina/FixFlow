@@ -85,6 +85,15 @@ Logs go to the console as JSON and to Seq; traces and metrics go to Seq over OTL
 
 Running the SPA is documented here when it lands (plan M0).
 
+### Tests
+
+```bash
+dotnet test FixFlow.slnx
+```
+
+The integration tests need Docker running, but not the Compose stack, `.env` or user-secrets: Testcontainers starts
+its own PostgreSQL and Azurite once per run, on the image tags from `docker-compose.yml`, and removes them afterwards.
+
 ## Contributing
 
 - Conventional commits (`feat(work-orders): ...`), short-lived branches, squash merge.

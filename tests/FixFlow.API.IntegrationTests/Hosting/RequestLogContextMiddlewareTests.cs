@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.Hosting.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -50,7 +51,7 @@ public class RequestLogContextMiddlewareTests
     private static async Task<(LogEvent Logged, Dictionary<string, LogEventPropertyValue> Completion, Activity Activity)>
         InvokeAsync(ClaimsPrincipal user)
     {
-        var sink = new CollectingSink();
+        var sink = new TestLogSink();
         using var logger = new LoggerConfiguration().Enrich.FromLogContext().WriteTo.Sink(sink).CreateLogger();
         var diagnosticContext = new DiagnosticContext(logger);
         using var collector = diagnosticContext.BeginCollection();
