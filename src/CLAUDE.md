@@ -36,10 +36,18 @@ FixFlow.Application/WorkOrders/
 ├─ WorkOrderAuthorizationHandler.cs
 └─ WorkOrderQueryExtensions.cs        # .VisibleTo(user)
 
-FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # MapGroup("/api/v1/work-orders")
+FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-orders" → /api/v1/work-orders
 ```
 
-- Endpoints are thin: bind → `sender.Send(command)` → map result to `TypedResults`. No business logic in endpoints.
+- A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
+  `MapFixFlowApi()` maps it under `/api/v1` in its own group.
+- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToNoContent()` (`ResultExtensions`), which map
+  the handler's `Result` to `TypedResults`. No business logic in endpoints.
+- Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
+  `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
+  validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.
+- List queries implement `IPagedQuery`, return `PagedResult<T>`, and their validator derives from
+  `PagedQueryValidator<T>` (pageSize ≤ 100).
 - Every endpoint declares `.RequireAuthorization(<policy>)`; anonymous ones use `.AllowAnonymous()` explicitly.
 - Every endpoint declares its responses (`Produces<T>()`, `ProducesProblem(...)`) so the OpenAPI client is accurate.
 
@@ -145,6 +153,7 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 
 - Test naming: `Method_Scenario_ExpectedResult`.
 - Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
+  Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
 - Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
   constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
   cookies, no redirects); `.WithOrganization(slug)` sets `X-Organization`.

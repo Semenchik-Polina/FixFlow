@@ -1,4 +1,7 @@
+using FixFlow.API.Endpoints;
+using FixFlow.API.IntegrationTests.Conventions;
 using FixFlow.Application.Email;
+using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -104,6 +107,11 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(Emails);
                 services.AddSingleton<ILogEventSink>(Logs);
+
+                // Test-only endpoints with their handlers and validators, behind the app's own pipeline behaviours
+                services.AddMediatR(config => config.RegisterServicesFromAssemblyContaining<FixFlowApiFactory>());
+                services.AddValidatorsFromAssemblyContaining<FixFlowApiFactory>(includeInternalTypes: true);
+                services.AddEndpointModule<ConventionTestEndpoints>();
             });
     }
 }

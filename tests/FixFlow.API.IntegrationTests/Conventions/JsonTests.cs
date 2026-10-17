@@ -1,0 +1,50 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using FixFlow.API.IntegrationTests.Fixtures;
+
+namespace FixFlow.API.IntegrationTests.Conventions;
+
+public class JsonTests(FixFlowApiFactory api)
+{
+    [Fact]
+    public async Task Get_Sample_WritesCamelCaseIsoTimesAndEnumNames()
+    {
+        using var client = api.CreateApiClient();
+
+        var json = await client.GetStringAsync(
+            new Uri($"{ConventionTestEndpoints.Path}/samples/current", UriKind.Relative),
+            TestContext.Current.CancellationToken);
+
+        // The shared clock: FixFlowApiFactory.SharedNow
+        AssertJsonEqual(
+            """
+            {"name":"Current","at":"2026-01-14T09:00:00Z","on":"2026-01-14","notSet":null,"status":"InProgress","tags":["boiler"]}
+            """,
+            json);
+    }
+
+    [Fact]
+    public async Task Post_Sample_ReadsIsoTimesAndEnumNames()
+    {
+        const string Sample =
+            """
+            {"name":"Echo","at":"2026-03-29T00:59:59.5Z","on":"2026-03-29","notSet":"2026-03-29T01:00:00Z","status":"OnHold","tags":["a","b"]}
+            """;
+        using var client = api.CreateApiClient();
+        using var content = new StringContent(Sample, Encoding.UTF8, "application/json");
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        using var response = await client.PostAsync(
+            new Uri($"{ConventionTestEndpoints.Path}/samples", UriKind.Relative), content, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        AssertJsonEqual(Sample, await response.Content.ReadAsStringAsync(cancellationToken));
+    }
+
+    private static void AssertJsonEqual(string expected, string actual) =>
+        Assert.True(
+            JsonNode.DeepEquals(JsonNode.Parse(expected), JsonNode.Parse(actual)),
+            $"Expected {expected}{Environment.NewLine}Actual   {JsonSerializer.Serialize(JsonNode.Parse(actual))}");
+}

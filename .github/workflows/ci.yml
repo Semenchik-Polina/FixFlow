@@ -47,6 +47,15 @@ jobs:
       - name: Build
         run: dotnet build FixFlow.slnx --no-restore -c Release
 
+      # The build writes the OpenAPI document; the committed one must match it (plan P9)
+      - name: OpenAPI document is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- src/FixFlow.API/openapi.json)" ]; then
+            echo "::error file=src/FixFlow.API/openapi.json::The OpenAPI document is stale. Run 'dotnet build' and commit src/FixFlow.API/openapi.json."
+            git diff -- src/FixFlow.API/openapi.json
+            exit 1
+          fi
+
       - name: Test
         run: dotnet test FixFlow.slnx --no-build -c Release --logger trx --results-directory TestResults
 

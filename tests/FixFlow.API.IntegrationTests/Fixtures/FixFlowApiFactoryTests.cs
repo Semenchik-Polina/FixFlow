@@ -51,7 +51,8 @@ public class FixFlowApiFactoryTests(FixFlowApiFactory api)
 
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // The fallback policy answers unknown routes too
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains(api.Logs.Events, logEvent =>
             logEvent.Properties.TryGetValue("RequestPath", out var value)
             && value is ScalarValue { Value: string requestPath }

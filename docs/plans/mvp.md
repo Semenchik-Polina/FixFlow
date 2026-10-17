@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.8
+**Status:** approved 2026-10-09 · **Next task:** T0.9
 
 ## Context
 
@@ -28,6 +28,10 @@ decision in the tables below.
 | P5 | **PostgreSQL 18** (pinned to `18.6-trixie`) instead of 16, for support until Nov 2030. Patch updates come through Dependabot; major upgrades are deliberate and follow a documented procedure. Decided 2026-10-11, before T0.3. | ARCHITECTURE §20 |
 | P6 | **Testcontainers reads its image tags from `docker-compose.yml`** (copied to the test output), so the tests can't drift from Compose and a Dependabot image bump runs the integration tests on its own PR. Decided 2026-10-13, in T0.7. | ARCHITECTURE §20 |
 | P7 | **`IEmailSender` + `EmailMessage` are defined in Application in T0.7**, without an implementation, so the test factory can swap in the in-memory sink. T1.4 adds the MailKit sender and templates behind the same interface. Decided 2026-10-13. | this plan (T0.7, T1.4) |
+| P8 | **Endpoint modules are registered in DI.** A module implements `IEndpointModule` (prefix + `Map(group)`) and is registered with `AddEndpointModule<T>()`; `MapFixFlowApi()` maps each one under `/api/v1` in its own group. Tests register test-only modules the same way, so they run through the real pipeline. Decided 2026-10-14, in T0.8. | `src/CLAUDE.md` §2 |
+| P9 | **The OpenAPI document is committed** as `src/FixFlow.API/openapi.json`, written by `dotnet build`. PR diffs show contract changes (the generated client's diffs are hidden), CI fails when it is stale, and `gen:api` (T0.10) reads it without building the backend. Decided 2026-10-14. | this plan (T0.8, T0.10) |
+| P10 | **The authentication scheme comes in T0.8; unknown routes need a session.** The fallback policy needs a challenge scheme, so T0.8 registers the Identity cookie schemes (`AddIdentityCookies`, 401/403 instead of redirects). T1.2 builds on them with `AddIdentityCore`, not `AddIdentity` (which would register them again). The fallback policy also covers unmatched routes: anonymous → 401, signed in → 404. Decided 2026-10-14. | this plan (T0.8, T1.2, T0.11) |
+| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. | this plan (T0.8, T0.9) |
 
 ## Assumptions (approved with this plan)
 
@@ -196,7 +200,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Tests are parallel-safe by construction (each test uses its own orgs and emails).
   - The backend suite runs in under 5 minutes locally.
 
-- [ ] **T0.8 API & application conventions** · M
+- [x] **T0.8 API & application conventions** · M
   Scope:
   - Problem Details: DomainException → 422, concurrency → 409, validation → 400 with field errors; no stack traces outside Development.
   - `Result<T>` → `TypedResults`.
@@ -217,7 +221,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - `IOrganizationOwned` interceptor: empty → set from `ICurrentUser`; mismatch or no org context → throw.
   - Org and soft-delete global filters, applied by convention.
   - Audit interceptor (`IClock` + current user).
-  - Opt-in `xmin` row version.
+  - Opt-in `xmin` row version; `SaveChanges` rethrows `DbUpdateConcurrencyException` as `ConcurrencyConflictException` (P11).
   - Two-phase domain event dispatch (A2).
   - `ToPageAsync`.
   - Auto-migration in Development only.
@@ -243,7 +247,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - React Router with lazy routes (`/login`, `/:orgSlug/*`); TanStack Query refetching on focus.
   - ESLint + Prettier; Vitest + RTL + MSW.
   - `api/http.ts`: sends cookies, turns Problem Details into `ApiError`, takes `X-Organization` from the URL slug only, redirects to `/login` on 401.
-  - orval + `gen:api` from the build-time OpenAPI document.
+  - orval + `gen:api` from the committed build-time OpenAPI document, `src/FixFlow.API/openapi.json` (P9).
   - `formatInstant` and a strings module.
   - Vite proxy for `/api`; a responsive app shell.
   - CI: a frontend job, `npm audit --audit-level=high`, and a check that the generated client is up to date.
@@ -267,7 +271,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - CI: an image build job.
 
   DoD:
-  - `docker compose --profile full up -d --build --wait` serves the SPA over HTTPS. A deep link `/x/requests` returns index.html, and `/api/v1/nope` returns a 404 Problem Details.
+  - `docker compose --profile full up -d --build --wait` serves the SPA over HTTPS. A deep link `/x/requests` returns index.html, and `/api/v1/nope` returns a 401 Problem Details to an anonymous caller (P10).
   - The image runs as non-root with no secrets in its layers. Certs and `.env` are untracked. The image builds in CI.
 
 **M0 exit:** a fresh clone plus the README gets everything running; CI is green and required.
@@ -287,7 +291,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - ASP.NET Core Identity in Infrastructure: `User : IdentityUser<Guid>` with UUIDv7 ids and first/last name.
   - Schemas `identity` and `organizations`, with the §10 unique indexes.
   - Password policy (S3); lockout after 5 failed attempts.
-  - Cookie (S1) that returns 401/403 instead of redirecting.
+  - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
   - Migration `AddIdentityAndOrganizations`.
 
