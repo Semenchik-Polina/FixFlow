@@ -8,6 +8,7 @@ using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
 using FixFlow.Hosting.Telemetry;
+using FixFlow.Infrastructure.Persistence;
 using NodaTime;
 using Serilog;
 using Serilog.Formatting.Compact;
@@ -34,6 +35,8 @@ try
 
     builder.Services.AddSingleton<IClock>(SystemClock.Instance);
     builder.Services.AddFixFlowApplication();
+    builder.Services.AddFixFlowPersistence(
+        services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString());
     builder.Services.AddFixFlowJson();
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();
@@ -58,7 +61,13 @@ try
 
     app.MapFixFlowApi();
 
-    app.Run();
+    // Development only (§20). dotnet ef stops the host at Build(), so it never gets here.
+    if (app.Environment.IsDevelopment() && !BuildTimeDocument.IsGenerating)
+    {
+        await app.Services.MigrateFixFlowDatabaseAsync();
+    }
+
+    await app.RunAsync();
 }
 // WebApplicationFactory stops the host with HostAbortedException on purpose
 catch (Exception ex) when (ex is not HostAbortedException)

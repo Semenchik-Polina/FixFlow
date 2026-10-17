@@ -1,6 +1,8 @@
 using FixFlow.API.Endpoints;
 using FixFlow.API.IntegrationTests.Conventions;
+using FixFlow.API.IntegrationTests.Persistence;
 using FixFlow.Application.Email;
+using FixFlow.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -27,6 +29,7 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly TestInfrastructure _infrastructure;
     private readonly bool _ownsInfrastructure;
     private readonly FakeClock _clock;
+    private PersistenceTestDatabase? _persistence;
 
     public FixFlowApiFactory()
         : this(new TestInfrastructure(), ownsInfrastructure: true, new FakeClock(SharedNow))
@@ -65,6 +68,17 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         HandleCookies = true,
     });
 
+    /// <summary>
+    /// A database of its own with test-only entities, for tests of the persistence conventions. Only on the shared
+    /// factory.
+    /// </summary>
+    public PersistenceTestDatabase Persistence =>
+        _persistence ?? throw new InvalidOperationException("Use the shared FixFlowApiFactory for persistence tests.");
+
+    /// <summary>A new, empty database on the run's PostgreSQL. Returns the app's connection string to it.</summary>
+    public Task<string> CreateDatabaseAsync() =>
+        _infrastructure.CreateDatabaseAsync($"fixflow_{Guid.CreateVersion7():N}", TestContext.Current.CancellationToken);
+
     public async ValueTask InitializeAsync()
     {
         if (_ownsInfrastructure)
@@ -72,15 +86,25 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             await _infrastructure.StartAsync();
         }
 
-        // T0.9: apply the migrations once here (auto-migration runs in Development only)
-
         // Build the host now: parallel tests would otherwise race to build it on first use
         StartServer();
+
+        if (_ownsInfrastructure)
+        {
+            // Once per run, before any test: the app migrates on startup in Development only
+            await Services.MigrateFixFlowDatabaseAsync();
+            _persistence = await PersistenceTestDatabase.CreateAsync(_infrastructure);
+        }
     }
 
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+
+        if (_persistence is not null)
+        {
+            await _persistence.DisposeAsync();
+        }
 
         if (_ownsInfrastructure)
         {

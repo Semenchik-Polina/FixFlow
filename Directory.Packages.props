@@ -23,11 +23,22 @@
   </ItemGroup>
 
   <!-- Used directly by Hosting (BlobServiceClient) and API (NpgsqlConnectionStringBuilder). The health checks
-       pull in older versions. Keep these in step with Infrastructure: Npgsql via
-       Npgsql.EntityFrameworkCore.PostgreSQL (T0.9), Azure.Storage.Blobs (T4.x). -->
+       pull in older versions. Keep these in step with Infrastructure: Npgsql with the version
+       Npgsql.EntityFrameworkCore.PostgreSQL requires, Azure.Storage.Blobs (T4.x). -->
   <ItemGroup Label="Data and storage clients">
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+  <!-- EF Core on the same servicing release as the ASP.NET Core packages. Relational is pinned too, so the provider
+       can't pull an older one than EF Core itself. -->
+  <ItemGroup Label="Persistence">
+    <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.3" />
   </ItemGroup>
 
   <!-- The app's IClock (T0.8) and the tests' FakeClock must come from the same NodaTime -->

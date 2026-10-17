@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.9
+**Status:** approved 2026-10-09 · **Next task:** T0.10
 
 ## Context
 
@@ -32,6 +32,9 @@ decision in the tables below.
 | P9 | **The OpenAPI document is committed** as `src/FixFlow.API/openapi.json`, written by `dotnet build`. PR diffs show contract changes (the generated client's diffs are hidden), CI fails when it is stale, and `gen:api` (T0.10) reads it without building the backend. Decided 2026-10-14. | this plan (T0.8, T0.10) |
 | P10 | **The authentication scheme comes in T0.8; unknown routes need a session.** The fallback policy needs a challenge scheme, so T0.8 registers the Identity cookie schemes (`AddIdentityCookies`, 401/403 instead of redirects). T1.2 builds on them with `AddIdentityCore`, not `AddIdentity` (which would register them again). The fallback policy also covers unmatched routes: anonymous → 401, signed in → 404. Decided 2026-10-14. | this plan (T0.8, T1.2, T0.11) |
 | P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. | this plan (T0.8, T0.9) |
+| P12 | **Domain event handlers: `IInTransactionEventHandler<TEvent>` and `IPostCommitEventHandler<TEvent>`** (Application), the names ADR 0005 left to T0.9. A small in-house `DomainEventDispatcher` calls them, not MediatR notifications: Domain can't reference MediatR, and MediatR's publisher stops at the first failing handler, while each post-commit handler must run and fail on its own. `AddDomainEventHandlers(assembly)` registers them. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §3 |
+| P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
+| P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
 
 ## Assumptions (approved with this plan)
 
@@ -215,7 +218,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Integration tests on test-only endpoints check the 404, 422, 409 and 400 Problem Details shapes. An anonymous call to an endpoint not on the allow-list → 401; pageSize 101 → 400.
   - `dotnet build` writes the OpenAPI document. NodaTime types appear as formatted strings, and enums as strings.
 
-- [ ] **T0.9 Persistence baseline** · M
+- [x] **T0.9 Persistence baseline** · M
   Scope:
   - `FixFlowDbContext`: Npgsql, `UseNodaTime()`, snake_case, one schema per module.
   - `IOrganizationOwned` interceptor: empty → set from `ICurrentUser`; mismatch or no org context → throw.

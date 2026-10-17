@@ -76,6 +76,9 @@ Then:
 dotnet run --project src/FixFlow.API --launch-profile http   # http://localhost:5250
 ```
 
+In Development the API applies pending EF Core migrations on startup. To add a migration, run `dotnet tool restore`
+once (it installs the pinned `dotnet-ef`), then the `dotnet ef migrations add` command from [CLAUDE.md](CLAUDE.md).
+
 | Endpoint | Purpose |
 |---|---|
 | `/health/live` | 200 while the process runs |

@@ -43,7 +43,7 @@ dotnet test FixFlow.slnx
 dotnet test tests/FixFlow.Domain.Tests --filter "FullyQualifiedName~WorkOrder"   # prefer focused runs
 dotnet run --project src/FixFlow.API
 
-# Migrations
+# Migrations (dotnet-ef pinned in .config/dotnet-tools.json: `dotnet tool restore` once)
 dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API
 
 # Frontend (from web/)

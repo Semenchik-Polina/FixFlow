@@ -62,25 +62,31 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   domain event. Allowed transitions/roles: `ARCHITECTURE.md` §7.
 - Business rule violations throw `DomainException` (mapped to **422** Problem Details);
   concurrency conflicts map to **409**; not found / not authorized to see → **404**.
-- Domain events: past-tense records (`WorkOrderAssigned`), collected on the aggregate, dispatched in two phases during
-  `SaveChanges` (ADR 0005):
-  - **in-transaction** handlers keep other aggregates consistent (WO Closed → request Closed) and commit or roll back
-    with the change. They change tracked aggregates only — never email, HTTP, Blob or other I/O;
-  - **post-commit** handlers run side effects (email, cache invalidation): catch and log failures (IDs only), never
-    fail the action, never write business data.
+- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`.
+- Domain events: past-tense `IDomainEvent` records (`WorkOrderAssigned`), raised with `Raise(...)` on the aggregate,
+  dispatched in two phases during `SaveChangesAsync` (ADR 0005, plan P12):
+  - **in-transaction** handlers (`IInTransactionEventHandler<TEvent>`) keep other aggregates consistent (WO Closed →
+    request Closed) and commit or roll back with the change. They change tracked aggregates only — never email, HTTP,
+    Blob or other I/O;
+  - **post-commit** handlers (`IPostCommitEventHandler<TEvent>`) run side effects (email, cache invalidation). The
+    dispatcher logs their failures and never fails the action; they never write business data.
 
 ---
 
 ## 4. Persistence (EF Core + PostgreSQL)
 
-- One `FixFlowDbContext`; schema per module (`requests`, `workorders`, `properties`, `identity`, ...).
+- One `FixFlowDbContext`; handlers use it through `IFixFlowDbContext` (Application), where each module adds its
+  `DbSet`s (plan P13). Schema per module: `ToTable("work_orders", Schemas.WorkOrders)`; nothing in `public`.
 - Entity configuration in `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` (`IEntityTypeConfiguration<T>`).
   No data annotations on domain entities.
 - snake_case naming for tables/columns (`UseSnakeCaseNamingConvention()`).
-- Organization-owned entities implement `IOrganizationOwned`; `OrganizationId` is set by a `SaveChanges` interceptor
-  and filtered by a global query filter. Soft delete (`DeletedAt`) is a second global filter.
-- Auditing fields (`CreatedAt/By`, `UpdatedAt/By`) are set by an interceptor using `IClock` and the current user.
-- Concurrency: `xmin` row version on `WorkOrder` and `MaintenanceRequest`.
+- Conventions come from marker interfaces (Domain); configurations don't repeat them:
+  - `IOrganizationOwned`: `OrganizationId` set on insert from `ICurrentUser`, writes for another org throw, and the
+    `QueryFilters.Organization` filter;
+  - `ISoftDeletable`: the `QueryFilters.SoftDelete` filter on `DeletedAt` (set by the aggregate's own method);
+  - `IAuditable`: `CreatedAt/By`, `UpdatedAt/By` set from `IClock` and the current user;
+  - `IHasRowVersion`: `RowVersion` mapped to `xmin` (on `WorkOrder` and `MaintenanceRequest`).
+- The model tests (`tests/.../Persistence/ModelConventionTests.cs`) check every entity against these conventions.
 - NodaTime mapping via `UseNodaTime()`: `Instant` ↔ `timestamptz`, `LocalTime` ↔ `time`, `LocalDate` ↔ `date`.
 - Queries: `AsNoTracking()`, project to DTOs with `Select`, always paginate lists. No `ToList()` before filtering.
 
