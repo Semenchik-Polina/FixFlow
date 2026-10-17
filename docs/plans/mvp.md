@@ -246,7 +246,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T0.10 Frontend skeleton** · M
   Scope:
   - Vite + React 18 + strict TypeScript.
-  - MUI theme with light/dark tokens.
+  - MUI theme, light only (dark theme is open question Q14, Phase 3).
   - React Router with lazy routes (`/login`, `/:orgSlug/*`); TanStack Query refetching on focus.
   - ESLint + Prettier; Vitest + RTL + MSW.
   - `api/http.ts`: sends cookies, turns Problem Details into `ApiError`, takes `X-Organization` from the URL slug only, redirects to `/login` on 401.

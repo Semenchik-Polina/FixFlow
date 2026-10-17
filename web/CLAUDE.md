@@ -53,7 +53,7 @@ web/src/
 
 ## 4. UI (MUI)
 
-- Theme lives in `app/theme.ts` (light + dark). Use theme tokens via `sx` / `styled` — no hard-coded colors,
+- Theme lives in `app/theme.ts` (light only; no dark mode or theme toggle — `ARCHITECTURE.md` Q14). Use theme tokens via `sx` / `styled` — no hard-coded colors,
   spacing or font sizes.
 - Lists: `@mui/x-data-grid` with server-side pagination/sorting. Dates: `@mui/x-date-pickers`.
 - Icons: `@mui/icons-material` only.
