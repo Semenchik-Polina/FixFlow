@@ -36,16 +36,58 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
             status.GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
     }
 
+    [Fact]
+    public async Task Document_Numbers_AreJsonNumbersOnly()
+    {
+        var document = await ReadDocumentAsync();
+
+        // The paged result's counts: a plain integer, not "integer or numeric string"
+        var paged = document.GetProperty("components").GetProperty("schemas").EnumerateObject()
+            .Single(schema => schema.Name.StartsWith("PagedResultOf", StringComparison.Ordinal)).Value;
+        Assert.Equal(["integer"], TypesOf(paged.GetProperty("properties").GetProperty("totalCount")));
+
+        // Anywhere in the document, including query parameters: the generated client would type them number | string
+        Assert.Empty(NumericSchemasAcceptingStrings(document, "#"));
+    }
+
+    private static IEnumerable<string> NumericSchemasAcceptingStrings(JsonElement element, string path)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            return element.EnumerateArray().SelectMany((item, index) => NumericSchemasAcceptingStrings(item, $"{path}/{index}"));
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        // A schema's "type" is a string or an array; under "properties" it can also be a property named "type"
+        string?[] types = element.TryGetProperty("type", out var type)
+            && type.ValueKind is JsonValueKind.String or JsonValueKind.Array
+                ? TypesOf(element)
+                : [];
+        IEnumerable<string> here = types.Contains("string") && (types.Contains("integer") || types.Contains("number"))
+            ? [path]
+            : [];
+
+        return here.Concat(element.EnumerateObject()
+            .SelectMany(property => NumericSchemasAcceptingStrings(property.Value, $"{path}/{property.Name}")));
+    }
+
+    private static string?[] TypesOf(JsonElement schema)
+    {
+        var type = schema.GetProperty("type");
+        return type.ValueKind == JsonValueKind.Array
+            ? [.. type.EnumerateArray().Select(value => value.GetString())]
+            : [type.GetString()];
+    }
+
     private static void AssertString(JsonElement schema, string format, bool nullable)
     {
         Assert.False(schema.TryGetProperty("$ref", out _), "NodaTime types are inlined");
         Assert.Equal(format, schema.GetProperty("format").GetString());
-
-        var type = schema.GetProperty("type");
-        string?[] types = type.ValueKind == JsonValueKind.Array
-            ? [.. type.EnumerateArray().Select(value => value.GetString())]
-            : [type.GetString()];
-        Assert.Equal(nullable ? ["null", "string"] : ["string"], types.Order(StringComparer.Ordinal));
+        Assert.Equal(nullable ? ["null", "string"] : ["string"], TypesOf(schema).Order(StringComparer.Ordinal));
     }
 
     private async Task<JsonElement> ReadDocumentAsync()

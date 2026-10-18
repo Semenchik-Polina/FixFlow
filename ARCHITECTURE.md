@@ -103,10 +103,11 @@ Tenant submits request → Manager triages → Work order created & assigned
 - Technician PWA with offline support
 - AI triage (Claude API): auto-categorization, urgency suggestion, thread summaries
 - QR codes per unit/asset, public API and webhooks
+- **In Phase 3:** decide whether to add a dark theme (Q14)
 
 ### Explicitly out of scope for MVP
 
-Realtime, SLAs, scheduling, costs, Redis, RabbitMQ, multiple workers, payments, AI, mobile apps, custom permissions, per-organization branding, MFA, email confirmation, cloud hosting, localization (English only).
+Realtime, SLAs, scheduling, costs, Redis, RabbitMQ, multiple workers, payments, AI, mobile apps, custom permissions, per-organization branding, MFA, email confirmation, cloud hosting, localization (English only), dark theme (light only).
 
 ### Planning assumptions
 
@@ -218,7 +219,7 @@ Api (endpoints, hubs)  →  Application (commands, queries, validators)  →  Do
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
+| Frontend | React 19, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
 | API client | TypeScript types/clients generated from OpenAPI (orval) |
 | Backend | .NET 10, ASP.NET Core Minimal APIs, SignalR |
 | Application | MediatR **12.x** (last Apache-2.0 line, ADR 0004), FluentValidation |
@@ -616,7 +617,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 ## 16. Frontend architecture
 
-- **Vite + React 18 + TypeScript (strict)**, **MUI** components and theming (light/dark).
+- **Vite + React 19 + TypeScript (strict)**, **MUI** components and theming (light theme only; dark theme is open question Q14).
 - **Feature-based folders** (`features/requests`, `features/work-orders`, ...), each with pages, components, hooks and API calls.
 - **Server state:** TanStack Query (query keys per resource, invalidation on mutations and on SignalR events).
 - **Forms:** React Hook Form + Zod schemas (mirroring server validation; server remains authoritative).
@@ -900,3 +901,4 @@ Each MVP slice extends the critical flow. It is complete (submit → assign → 
 | Q8 | Can managers be restricted to specific properties? | *No; add `ManagerPropertyAssignment` later if needed* |
 | Q9 | Data retention periods for closed work orders and photos? | *Keep work orders indefinitely; photos 3 years, then archive* |
 | Q13 | Can users opt out of non-critical emails? | *Yes, per user (Phase 2)* |
+| Q14 | Should the app offer a dark theme? | *Light only until then; decide in Phase 3. Components use theme tokens only, so a dark palette can be added later without touching them* |

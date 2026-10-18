@@ -3,12 +3,12 @@
 A multi-tenant maintenance work-order platform: tenants submit requests → managers triage and assign →
 technicians complete the work → managers close it.
 
-> **Status:** early development (MVP, Phase 1). The local infrastructure and an API skeleton (logging, tracing,
-> health checks) run so far — see the [MVP plan](docs/plans/mvp.md).
+> **Status:** early development (MVP, Phase 1). The local infrastructure, an API skeleton (logging, tracing,
+> health checks) and a frontend skeleton run so far — see the [MVP plan](docs/plans/mvp.md).
 
 ## Stack
 
-.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 18 + TypeScript + Vite + MUI + TanStack Query ·
+.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 19 + TypeScript + Vite + MUI + TanStack Query ·
 Azure Blob Storage (Azurite locally) · Docker Compose. Details in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
@@ -86,7 +86,21 @@ once (it installs the pinned `dotnet-ef`), then the `dotnet ef migrations add` c
 
 Logs go to the console as JSON and to Seq; traces and metrics go to Seq over OTLP.
 
-Running the SPA is documented here when it lands (plan M0).
+### Frontend
+
+Needs Node.js 24 (`web/.nvmrc`). From `web/`:
+
+```bash
+npm ci            # once, and after dependency changes
+npm run dev       # http://localhost:5173
+```
+
+The dev server proxies `/api` to the API on http://localhost:5250, so the browser sees one origin and the auth cookie
+works without CORS. To point it elsewhere, set `FIXFLOW_API_URL`.
+
+The API client in `web/src/api/generated/` is generated from `src/FixFlow.API/openapi.json`, which `dotnet build`
+writes. After changing an endpoint or DTO, build the API, run `npm run gen:api` and commit both files. CI fails when
+either is stale.
 
 ### Tests
 
@@ -96,6 +110,12 @@ dotnet test FixFlow.slnx
 
 The integration tests need Docker running, but not the Compose stack, `.env` or user-secrets: Testcontainers starts
 its own PostgreSQL and Azurite once per run, on the image tags from `docker-compose.yml`, and removes them afterwards.
+
+Frontend, from `web/`:
+
+```bash
+npm run lint && npm run typecheck && npm test
+```
 
 ## Contributing
 
