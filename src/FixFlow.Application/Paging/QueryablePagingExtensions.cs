@@ -12,8 +12,16 @@ public static class QueryablePagingExtensions
         this IQueryable<T> query, IPagedQuery page, CancellationToken cancellationToken)
     {
         var totalCount = await query.CountAsync(cancellationToken);
+
+        // In long: a huge page number would overflow int into a negative OFFSET, which PostgreSQL rejects
+        var skip = (long)(page.Page - 1) * page.PageSize;
+        if (skip >= totalCount)
+        {
+            return new PagedResult<T>([], page.Page, page.PageSize, totalCount);
+        }
+
         var items = await query
-            .Skip((page.Page - 1) * page.PageSize)
+            .Skip((int)skip)
             .Take(page.PageSize)
             .ToListAsync(cancellationToken);
 

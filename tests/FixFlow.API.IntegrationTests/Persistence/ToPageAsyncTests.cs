@@ -30,5 +30,27 @@ public class ToPageAsyncTests(FixFlowApiFactory api)
         Assert.Equal(30, page.TotalCount);
     }
 
+    [Fact]
+    public async Task ToPageAsync_PageBeyondInt32Offset_ReturnsEmptyItemsAndTotal()
+    {
+        var user = TestCurrentUser.InNewOrganization();
+        await using (var scope = api.Persistence.CreateScope(user))
+        {
+            scope.Db.Widgets.AddRange(Enumerable.Range(0, 3).Select(i => new Widget($"Widget {i:D2}")));
+            await scope.Db.SaveChangesAsync(_ct);
+        }
+
+        await using var reader = api.Persistence.CreateScope(user);
+        var page = await reader.Db.Widgets
+            .OrderBy(w => w.Name)
+            .Select(w => w.Name)
+            .ToPageAsync(new PageRequest(Page: int.MaxValue, PageSize: PageSizes.Max), _ct);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(int.MaxValue, page.Page);
+        Assert.Equal(PageSizes.Max, page.PageSize);
+        Assert.Equal(3, page.TotalCount);
+    }
+
     private sealed record PageRequest(int Page, int PageSize) : IPagedQuery;
 }
