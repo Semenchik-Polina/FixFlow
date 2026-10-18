@@ -8,7 +8,7 @@ technicians complete the work → managers close it.
 
 ## Stack
 
-.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 18 + TypeScript + Vite + MUI + TanStack Query ·
+.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 19 + TypeScript + Vite + MUI + TanStack Query ·
 Azure Blob Storage (Azurite locally) · Docker Compose. Details in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation

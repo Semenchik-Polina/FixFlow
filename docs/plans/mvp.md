@@ -35,6 +35,7 @@ decision in the tables below.
 | P12 | **Domain event handlers: `IInTransactionEventHandler<TEvent>` and `IPostCommitEventHandler<TEvent>`** (Application), the names ADR 0005 left to T0.9. A small in-house `DomainEventDispatcher` calls them, not MediatR notifications: Domain can't reference MediatR, and MediatR's publisher stops at the first failing handler, while each post-commit handler must run and fail on its own. `AddDomainEventHandlers(assembly)` registers them. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §3 |
 | P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
 | P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
+| P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
 
 ## Assumptions (approved with this plan)
 
@@ -245,7 +246,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 - [ ] **T0.10 Frontend skeleton** · M
   Scope:
-  - Vite + React 18 + strict TypeScript.
+  - Vite + React 19 + strict TypeScript (P15).
   - MUI theme, light only (dark theme is open question Q14, Phase 3).
   - React Router with lazy routes (`/login`, `/:orgSlug/*`); TanStack Query refetching on focus.
   - ESLint + Prettier; Vitest + RTL + MSW.

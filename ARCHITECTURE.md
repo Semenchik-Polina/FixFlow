@@ -219,7 +219,7 @@ Api (endpoints, hubs)  →  Application (commands, queries, validators)  →  Do
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
+| Frontend | React 19, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
 | API client | TypeScript types/clients generated from OpenAPI (orval) |
 | Backend | .NET 10, ASP.NET Core Minimal APIs, SignalR |
 | Application | MediatR **12.x** (last Apache-2.0 line, ADR 0004), FluentValidation |
@@ -617,7 +617,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 ## 16. Frontend architecture
 
-- **Vite + React 18 + TypeScript (strict)**, **MUI** components and theming (light theme only; dark theme is open question Q14).
+- **Vite + React 19 + TypeScript (strict)**, **MUI** components and theming (light theme only; dark theme is open question Q14).
 - **Feature-based folders** (`features/requests`, `features/work-orders`, ...), each with pages, components, hooks and API calls.
 - **Server state:** TanStack Query (query keys per resource, invalidation on mutations and on SignalR events).
 - **Forms:** React Hook Form + Zod schemas (mirroring server validation; server remains authoritative).
