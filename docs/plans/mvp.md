@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.10
+**Status:** approved 2026-10-09 · **Next task:** T0.11
 
 ## Context
 
@@ -36,6 +36,7 @@ decision in the tables below.
 | P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
 | P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
 | P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
+| P16 | **The OpenAPI document stays 3.1; the API reads numbers strictly.** A spike in T0.10 showed that orval 8 handles 3.1: nullables become `\| null` (nullable references too), enums become string unions, dates become strings, and its MSW 3 mocks compile and run. The spike also showed that the web JSON default (numbers may be sent as strings) makes every number `integer \| string` in the document and `number \| string` in the client, so the API sets `JsonNumberHandling.Strict`; a document test guards it. The generated files' header omits the orval version, so an orval update alone doesn't make the client stale. TypeScript stays on 6.0 until typescript-eslint supports 7 (Dependabot ignores TypeScript majors). Decided 2026-10-19, in T0.10. | this plan (T0.10) |
 
 ## Assumptions (approved with this plan)
 
@@ -244,7 +245,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a failing post-commit handler doesn't roll back or fail the request
   - Auto-migration runs only when `ASPNETCORE_ENVIRONMENT=Development`.
 
-- [ ] **T0.10 Frontend skeleton** · M
+- [x] **T0.10 Frontend skeleton** · M
   Scope:
   - Vite + React 19 + strict TypeScript (P15).
   - MUI theme, light only (dark theme is open question Q14, Phase 3).
@@ -284,7 +285,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 - [ ] **T1.1 Organization & membership domain** · S
   Scope:
-  - `Organization`: name, slug rules + reserved list.
+  - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one.
   - `OrganizationMembership`: Active/Suspended, JoinedAt, at least one role.
   - `Role`: Tenant, Technician, Manager, Admin.
 
