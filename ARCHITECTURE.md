@@ -143,7 +143,7 @@ Each decision below should have a corresponding ADR in `docs/adr/NNNN-title.md` 
 | D19 | Local orchestration | **Docker Compose** for infrastructure; API, workers and Vite run on the host (optional `full` profile runs everything in containers) |
 | D20 | Hosting | **Local only** through Phase 2. "Production-like" = Compose `full` profile with 2 API replicas behind nginx. Public demo/hosting decided at the end of Phase 2 (no paid cloud accounts) |
 | D21 | Email | **Mailpit** (catches all mail). A real provider only if/when hosting is decided |
-| D22 | Repo | **Monorepo** (`src/`, `web/`, `tests/`, `docs/`), trunk-based with short-lived branches |
+| D22 | Repo | **Monorepo** (`src/`, `web/`, `tests/`, `docs/`). Short-lived feature branches merge into **`dev`**; `dev` merges into `main` at milestones with a merge commit (ADR 0006) |
 | D23 | Visibility | **Public GitHub repository**, MIT licence. No secrets and no real personal data in code, seeds or fixtures |
 | D24 | Organizations | **Public self-signup**: whoever creates an organization becomes its first Admin |
 | D25 | Request triage | A manager **always** accepts or rejects a request before a work order exists; accepting creates the work order in the same transaction (ADR 0002) |
@@ -789,7 +789,8 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 
 - `.editorconfig`, nullable reference types enabled, `TreatWarningsAsErrors`.
 - ESLint + Prettier for the SPA.
-- Conventional commits; short-lived feature branches; squash merge.
+- Conventional commits; short-lived feature branches off `dev`, squash-merged (a merge commit for a bigger branch whose
+  commits are worth keeping); `dev` → `main` at milestones with a merge commit (ADR 0006).
 
 ---
 

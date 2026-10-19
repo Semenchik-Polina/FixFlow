@@ -37,6 +37,7 @@ decision in the tables below.
 | P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
 | P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
 | P16 | **The OpenAPI document stays 3.1; the API reads numbers strictly.** A spike in T0.10 showed that orval 8 handles 3.1: nullables become `\| null` (nullable references too), enums become string unions, dates become strings, and its MSW 3 mocks compile and run. The spike also showed that the web JSON default (numbers may be sent as strings) makes every number `integer \| string` in the document and `number \| string` in the client, so the API sets `JsonNumberHandling.Strict`; a document test guards it. The generated files' header omits the orval version, so an orval update alone doesn't make the client stale. TypeScript stays on 6.0 until typescript-eslint supports 7 (Dependabot ignores TypeScript majors). Decided 2026-10-19, in T0.10. | this plan (T0.10) |
+| P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
 
 ## Assumptions (approved with this plan)
 
@@ -145,7 +146,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   DoD:
   - `gitleaks detect` is clean, and the pre-commit hook blocks a planted fake key (removed afterwards).
   - The repo is public with the MIT licence detected, and GitHub accepts the Dependabot config.
-  - Merges are squash-only. Branch protection is added once CI exists (T0.5).
+  - Merges are squash-only (merge commits since allowed for `dev` → `main` and bigger feature branches: P17). Branch protection is added once CI exists (T0.5).
 
   Note: until their manifests exist, the Dependabot runs for github-actions (T0.5), docker-compose (T0.3),
   npm (T0.10) and docker (T0.11) fail with "not found". That is expected, not a config error.

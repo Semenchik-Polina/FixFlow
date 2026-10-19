@@ -119,7 +119,9 @@ npm run lint && npm run typecheck && npm test
 
 ## Contributing
 
-- Conventional commits (`feat(work-orders): ...`), short-lived branches, squash merge.
+- Conventional commits (`feat(work-orders): ...`), short-lived branches off `dev`, squash merge (or a merge commit for
+  a bigger branch). `dev` merges into `main` at milestones with a merge commit
+  ([ADR 0006](docs/adr/0006-dev-integration-branch.md)).
 - No secrets and no real personal data anywhere in the repository — use fake data (`*.example.test`).
 
 ## License
