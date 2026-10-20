@@ -4,6 +4,7 @@ using FixFlow.API.Endpoints;
 using FixFlow.API.Errors;
 using FixFlow.API.Json;
 using FixFlow.API.OpenApi;
+using FixFlow.API.Spa;
 using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
@@ -41,6 +42,7 @@ try
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();
     builder.Services.AddFixFlowOpenApi();
+    builder.Services.AddFixFlowSpa();
     // Endpoint modules: builder.Services.AddEndpointModule<...>() (from T1.3)
 
     var app = builder.Build();
@@ -48,6 +50,7 @@ try
     // Outermost, so it logs the final status code (a 422 at Information, a 500 at Error)
     app.UseFixFlowRequestLogging();
     app.UseFixFlowErrorHandling();
+    app.UseFixFlowSpaStaticFiles();
     app.UseAuthentication();
     // T1.5: the organization context middleware goes here
     // Needs the user's claims: keep it after authentication and the organization context middleware
@@ -60,6 +63,7 @@ try
     }
 
     app.MapFixFlowApi();
+    app.MapFixFlowSpa();
 
     // Development only (§20). dotnet ef stops the host at Build(), so it never gets here.
     if (app.Environment.IsDevelopment() && !BuildTimeDocument.IsGenerating)

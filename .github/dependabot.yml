@@ -52,6 +52,16 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # The SDK and runtime stay on the .NET 10 LTS line (D17); a new major is a deliberate upgrade.
+      # Both forms, since the name may or may not keep the registry.
+      - dependency-name: "mcr.microsoft.com/dotnet/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotnet/*"
+        update-types: ["version-update:semver-major"]
+      # The SPA build's Node major follows web/.nvmrc
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directory: "/"
@@ -64,3 +74,5 @@ updates:
       # PostgreSQL major upgrades are deliberate and need a data migration (ARCHITECTURE §20)
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
+      # Built locally from the Dockerfile (the `full` profile), not pulled from a registry
+      - dependency-name: "fixflow-*"

@@ -18,7 +18,7 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
-# Image and E2E jobs are added in T0.11 and T1.8
+# The E2E job is added in T1.8
 jobs:
   backend:
     name: Backend
@@ -114,6 +114,53 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  image:
+    name: Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Built and checked, never pushed: nothing is published or deployed (ARCHITECTURE §20)
+      - name: Build the migrate image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: migrate
+          load: true
+          tags: fixflow-migrate:ci
+          cache-from: type=gha,scope=migrate
+          cache-to: type=gha,mode=max,scope=migrate
+
+      - name: Build the API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: api
+          load: true
+          tags: fixflow-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Images run as non-root
+        run: |
+          for image in fixflow-migrate:ci fixflow-api:ci; do
+            user="$(docker image inspect --format '{{.Config.User}}' "$image")"
+            if [ -z "$user" ] || [ "${user%%:*}" = "root" ] || [ "${user%%:*}" = "0" ]; then
+              echo "::error file=Dockerfile::$image runs as root (USER '$user')"
+              exit 1
+            fi
+          done
+
+      - name: Compose file is valid
+        run: |
+          cp .env.example .env
+          docker compose --profile full config --quiet
 
   secrets:
     name: Secrets

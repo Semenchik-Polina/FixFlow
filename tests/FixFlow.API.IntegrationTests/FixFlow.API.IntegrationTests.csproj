@@ -14,6 +14,11 @@
     <None Include="..\..\docker\postgres\initdb\*.sh" Link="Compose\initdb\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- A stand-in for the SPA the image copies into wwwroot (Hosting/SpaHostingTests.cs) -->
+  <ItemGroup>
+    <None Update="Hosting\TestWebRoot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
