@@ -4,7 +4,8 @@ A multi-tenant maintenance work-order platform: tenants submit requests → mana
 technicians complete the work → managers close it.
 
 > **Status:** early development (MVP, Phase 1). The local infrastructure, an API skeleton (logging, tracing,
-> health checks) and a frontend skeleton run so far — see the [MVP plan](docs/plans/mvp.md).
+> health checks), a frontend skeleton and a production-like container setup run so far — see the
+> [MVP plan](docs/plans/mvp.md).
 
 ## Stack
 
@@ -101,6 +102,31 @@ works without CORS. To point it elsewhere, set `FIXFLOW_API_URL`.
 The API client in `web/src/api/generated/` is generated from `src/FixFlow.API/openapi.json`, which `dotnet build`
 writes. After changing an endpoint or DTO, build the API, run `npm run gen:api` and commit both files. CI fails when
 either is stale.
+
+### Full profile (production-like)
+
+The `full` profile builds the API image, with the built SPA inside, and runs it next to the infrastructure: as
+Production, over HTTPS, at https://localhost:8443. The end-to-end tests run against it.
+
+Once, and again when the certificate expires (yearly), export the ASP.NET Core development certificate to the
+untracked `certs/` folder. The script also trusts it, so the browser accepts the address (Windows asks to confirm; on
+Linux trusting is best effort, and the browser may warn once).
+
+```bash
+./scripts/dev-cert.sh                                          # Linux, macOS
+powershell -ExecutionPolicy Bypass -File scripts/dev-cert.ps1  # Windows
+```
+
+Then:
+
+```bash
+docker compose --profile full up -d --build --wait   # also starts the infrastructure
+docker compose --profile full down
+```
+
+A one-shot `migrate` service applies the EF Core migrations before the API starts. The containers read their settings
+from `.env`, not user-secrets. To send their logs and traces to Seq, set `SEQ_API_KEY` in `.env` (a Seq API key
+with the Ingest permission).
 
 ### Tests
 

@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.11
+**Status:** approved 2026-10-09 · **Next task:** T1.1
 
 ## Context
 
@@ -38,6 +38,8 @@ decision in the tables below.
 | P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
 | P16 | **The OpenAPI document stays 3.1; the API reads numbers strictly.** A spike in T0.10 showed that orval 8 handles 3.1: nullables become `\| null` (nullable references too), enums become string unions, dates become strings, and its MSW 3 mocks compile and run. The spike also showed that the web JSON default (numbers may be sent as strings) makes every number `integer \| string` in the document and `number \| string` in the client, so the API sets `JsonNumberHandling.Strict`; a document test guards it. The generated files' header omits the orval version, so an orval update alone doesn't make the client stale. TypeScript stays on 6.0 until typescript-eslint supports 7 (Dependabot ignores TypeScript majors). Decided 2026-10-19, in T0.10. | this plan (T0.10) |
 | P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
+| P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
+| P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
 
 ## Assumptions (approved with this plan)
 
@@ -267,7 +269,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - `formatInstant` formats in a given IANA zone across a DST change
   - CI fails when the committed client is out of date.
 
-- [ ] **T0.11 Containers & `full` profile** · M
+- [x] **T0.11 Containers & `full` profile** · M
   Scope:
   - Multi-stage Dockerfile: build the SPA → publish the API → copy the SPA into `wwwroot`; runs as non-root.
   - An SPA fallback that excludes `/api` and `/health`.
@@ -286,7 +288,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 - [ ] **T1.1 Organization & membership domain** · S
   Scope:
-  - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one.
+  - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one, plus `api`, `health` and `hubs`, which the API keeps for itself (T0.11). Slugs, like every client route parameter, contain no dots: the SPA fallback treats a dotted last segment as a file name (T0.11).
   - `OrganizationMembership`: Active/Suspended, JoinedAt, at least one role.
   - `Role`: Tenant, Technician, Manager, Admin.
 
@@ -299,6 +301,8 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Password policy (S3); lockout after 5 failed attempts.
   - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
+  - Data Protection keys: the `full` profile's container keeps them in its own filesystem (a startup warning since
+    T0.11), so recreating it signs everyone out. Persist them, e.g. to a named volume; Phase 2's two replicas need a shared key ring.
   - Migration `AddIdentityAndOrganizations`.
 
   DoD:
@@ -393,7 +397,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Playwright in `tests/web-e2e/` (Chromium, against the `full` profile over HTTPS).
   - Mailpit API helper and fake-data helpers (`*.example.test`).
   - Flows: signup → org home → logout/login, and password reset through the Mailpit link.
-  - CI job: bring up compose `full` with `--wait` → run Playwright → upload the report and traces on failure.
+  - CI job: export the dev cert (`scripts/dev-cert.sh`, P19) → bring up compose `full` with `--wait` → run Playwright → upload the report and traces on failure.
 
   DoD:
   - Green locally and in CI. Each test signs up its own org, and the suite runs with 2 workers. 3 CI runs in a row pass.
@@ -530,7 +534,8 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - 5-minute write SAS for `{orgId}/{yyyy}/{mm}/{uuid}`
     - short read SAS
     - blob properties and range reads
-  - Private containers and Azurite CORS, created at dev startup.
+  - Private containers and Azurite CORS, created at dev startup. The `full` profile runs as Production (P18), so it needs them created too.
+  - Browser-facing SAS URLs use `Blob:PublicEndpoint` when it is set; the `full` profile sets it (P19).
   - `POST /uploads`.
   - `Attachment`: owner is a request or a WO (exactly one), kind General/Before/After, `ScanStatus` Pending.
   - Checks when attaching:

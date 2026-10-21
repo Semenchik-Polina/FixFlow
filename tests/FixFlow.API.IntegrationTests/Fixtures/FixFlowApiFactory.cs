@@ -58,16 +58,6 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </summary>
     public OwnClockApiFactory WithOwnClock(Instant start) => new(_infrastructure, new FakeClock(start));
 
-    /// <summary>A client for one user session: its own cookies, no redirects followed.</summary>
-    public HttpClient CreateApiClient() => CreateClient(new WebApplicationFactoryClientOptions
-    {
-        // The auth cookie is Secure (S1), and CookieContainer only sends Secure cookies back over https
-        BaseAddress = new Uri("https://localhost"),
-        // The API answers 401/403 itself; following a redirect would hide that
-        AllowAutoRedirect = false,
-        HandleCookies = true,
-    });
-
     /// <summary>
     /// A database of its own with test-only entities, for tests of the persistence conventions. Only on the shared
     /// factory.

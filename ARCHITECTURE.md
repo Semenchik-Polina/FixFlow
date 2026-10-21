@@ -733,6 +733,8 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
   cd web && npm run dev
   ```
 - `docker compose --profile full up` also builds and runs the API and workers as containers (used for E2E tests and demoing).
+  The API runs as Production and serves the SPA at https://localhost:8443 with the host's exported ASP.NET Core dev
+  certificate; a one-shot `migrate` service applies the migrations before it starts.
   From Phase 2: `docker compose --profile full up --scale api=2` runs two API replicas behind an `nginx` reverse proxy
   (sticky sessions off) to verify the SignalR Redis backplane and stateless API behavior.
 - Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `127.0.0.1`,
