@@ -43,6 +43,9 @@ public sealed partial class DomainEventDispatcher(
     [LoggerMessage(Level = LogLevel.Error, Message = "Post-commit handler {Handler} failed for {DomainEvent}")]
     private partial void LogPostCommitFailure(Exception exception, string handler, string domainEvent);
 
+    [LoggerMessage(Level = LogLevel.Error, Message = "Post-commit handlers for {DomainEvent} could not be created")]
+    private partial void LogPostCommitHandlersUnavailable(Exception exception, string domainEvent);
+
     /// <summary>Resolves and calls the handlers of one event type, without reflection per call.</summary>
     private abstract class EventInvoker
     {
@@ -68,7 +71,20 @@ public sealed partial class DomainEventDispatcher(
         public override async Task PostCommitAsync(
             IServiceProvider services, IDomainEvent domainEvent, DomainEventDispatcher dispatcher)
         {
-            foreach (var handler in services.GetServices<IPostCommitEventHandler<TEvent>>())
+            IPostCommitEventHandler<TEvent>[] handlers;
+            try
+            {
+                handlers = [.. services.GetServices<IPostCommitEventHandler<TEvent>>()];
+            }
+            // The container creates them all at once, so one that can't be created leaves none of them to run. The
+            // action has committed all the same: logged, never surfaced (ADR 0005)
+            catch (Exception exception)
+            {
+                dispatcher.LogPostCommitHandlersUnavailable(dispatcher.ForLog(exception), typeof(TEvent).Name);
+                return;
+            }
+
+            foreach (var handler in handlers)
             {
                 try
                 {

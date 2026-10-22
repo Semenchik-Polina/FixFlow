@@ -101,6 +101,34 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task PostCommitHandler_CannotBeCreated_ChangeIsSavedAndLaterEventsDispatched()
+    {
+        var (trigger, _) = await SaveWidgetsAsync();
+
+        await using (var scope = api.Persistence.CreateScope(_user))
+        {
+            var saved = await scope.Db.Widgets.SingleAsync(w => w.Id == trigger.Id, _ct);
+            saved.Rename("Renamed");
+            saved.Publish(new WidgetNoticeMisconfigured(saved.Id));
+            saved.Publish(new WidgetNoticed(saved.Id));
+
+            // Doesn't throw: the action stands
+            await scope.Db.SaveChangesAsync(_ct);
+        }
+
+        Assert.Equal("Renamed", (await LoadAsync(trigger.Id)).Name);
+        Assert.Equal(1, api.Persistence.PostCommit.Count(trigger.Id));
+        // WidgetNoticeMisconfigured is raised by this test only
+        var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
+            logEvent.Level == LogEventLevel.Error
+            && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeMisconfigured) });
+        // Where it failed, without the message
+        Assert.Contains(
+            $"{nameof(MisconfiguredNoticeHandler)}..ctor", failure.Exception?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Smtp:Host", Render(failure), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PostCommitHandler_NoExplicitTransaction_RunsOnceAfterSave()
     {
         var (trigger, _) = await SaveWidgetsAsync();

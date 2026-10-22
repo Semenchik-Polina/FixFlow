@@ -25,6 +25,9 @@ public sealed record WidgetNoticed(Guid WidgetId) : IDomainEvent;
 /// <summary>Post-commit: one handler fails, the other still records it.</summary>
 public sealed record WidgetNoticeFailed(Guid WidgetId) : IDomainEvent;
 
+/// <summary>Post-commit: a handler can't be created, as when its settings are missing.</summary>
+public sealed record WidgetNoticeMisconfigured(Guid WidgetId) : IDomainEvent;
+
 /// <summary>Post-commit: the handler throws what <see cref="Create"/> returns (how failures are logged).</summary>
 public sealed record WidgetSideEffectThrew(Func<Exception> Create) : IDomainEvent;
 
@@ -79,6 +82,14 @@ internal sealed class ThrowingSideEffectHandler : IPostCommitEventHandler<Widget
 {
     public Task Handle(WidgetSideEffectThrew domainEvent, CancellationToken cancellationToken) =>
         throw domainEvent.Create();
+}
+
+internal sealed class MisconfiguredNoticeHandler : IPostCommitEventHandler<WidgetNoticeMisconfigured>
+{
+    public MisconfiguredNoticeHandler() => throw new InvalidOperationException("Smtp:Host is not set");
+
+    public Task Handle(WidgetNoticeMisconfigured domainEvent, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 }
 
 /// <summary>How often the post-commit handlers saw each widget. Shared by parallel tests: read only your own ids.</summary>
