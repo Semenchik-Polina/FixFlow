@@ -1,14 +1,17 @@
 using System.Text.RegularExpressions;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Persistence.TestModel;
+using FixFlow.Application.Auth;
 using FixFlow.Application.Persistence;
 using FixFlow.Domain;
 using FixFlow.Infrastructure.Persistence;
+using FixFlow.Infrastructure.Persistence.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
+using NodaTime.Testing;
 
 namespace FixFlow.API.IntegrationTests.Persistence;
 
@@ -139,6 +142,23 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         Assert.Empty(violations);
     }
 
+    [Fact]
+    public async Task Conventions_ManyToManyWithoutJoinClass_ModelBuilds()
+    {
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IClock>(new FakeClock(FixFlowApiFactory.SharedNow))
+            .AddScoped<ICurrentUser>(_ => TestCurrentUser.WithoutOrganization())
+            .AddFixFlowPersistence<ManyToManyDbContext>(_ => "Host=unused")
+            .BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+
+        // Building the model needs no database
+        var model = scope.ServiceProvider.GetRequiredService<ManyToManyDbContext>().Model;
+
+        Assert.Contains(model.GetEntityTypes(), t => t.HasSharedClrType);
+    }
+
     /// <summary>The design-time model: it keeps every annotation, unlike the runtime one.</summary>
     private async Task<IModel> ModelAsync(string model)
     {
@@ -154,4 +174,22 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
 
     [GeneratedRegex("^[a-z][a-z0-9_]*$")]
     private static partial Regex SnakeCase();
+
+    /// <summary>A many-to-many with no join class: EF Core joins through a shared-type (dictionary) entity.</summary>
+    private sealed class ManyToManyDbContext(
+        DbContextOptions<ManyToManyDbContext> options, ICurrentUser currentUser, DomainEventDispatcher domainEvents)
+        : FixFlowDbContext(options, currentUser, domainEvents)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Part>().HasMany(part => part.Widgets).WithMany();
+
+            base.OnModelCreating(modelBuilder);
+        }
+    }
+
+    private sealed class Part : Entity
+    {
+        public List<Widget> Widgets { get; } = [];
+    }
 }

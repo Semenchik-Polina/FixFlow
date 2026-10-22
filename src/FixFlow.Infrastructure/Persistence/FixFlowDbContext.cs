@@ -103,8 +103,13 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(InfrastructureAssembly.Instance);
 
-        // Filters and keys belong to the root of a hierarchy; derived types inherit them
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => t.BaseType is null && !t.IsOwned()))
+        // Filters and keys belong to the root of a hierarchy; derived types inherit them. Shared-type entities (the
+        // join tables of many-to-many relationships) are property bags with no marker interfaces, and
+        // ModelBuilder.Entity(Type) can't reach them.
+        var roots = modelBuilder.Model
+            .GetEntityTypes()
+            .Where(t => t.BaseType is null && !t.IsOwned() && !t.HasSharedClrType);
+        foreach (var entityType in roots)
         {
             ApplyConventions(modelBuilder.Entity(entityType.ClrType));
         }
