@@ -1,3 +1,4 @@
+using System.Globalization;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Persistence.TestModel;
 using FixFlow.Domain;
@@ -85,10 +86,46 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         // The other handler of the event still ran
         Assert.Equal(1, api.Persistence.PostCommit.Count(trigger.Id));
         // WidgetNoticeFailed is raised by this test only
-        Assert.Contains(api.Persistence.Logs.Events, logEvent =>
+        var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
             logEvent.Level == LogEventLevel.Error
             && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeFailed) }
             && logEvent.Properties["Handler"] is ScalarValue { Value: nameof(FailingNoticeHandler) });
+        // Its type and stack trace, but not its message: it quotes an email address (S26, ADR 0007)
+        var exception = failure.Exception?.ToString() ?? "";
+        Assert.StartsWith("System.InvalidOperationException: [message removed]", exception, StringComparison.Ordinal);
+        Assert.Contains(
+            $"{nameof(FailingNoticeHandler)}.{nameof(FailingNoticeHandler.Handle)}",
+            exception,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("example.test", Render(failure), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PostCommitHandler_CannotBeCreated_ChangeIsSavedAndLaterEventsDispatched()
+    {
+        var (trigger, _) = await SaveWidgetsAsync();
+
+        await using (var scope = api.Persistence.CreateScope(_user))
+        {
+            var saved = await scope.Db.Widgets.SingleAsync(w => w.Id == trigger.Id, _ct);
+            saved.Rename("Renamed");
+            saved.Publish(new WidgetNoticeMisconfigured(saved.Id));
+            saved.Publish(new WidgetNoticed(saved.Id));
+
+            // Doesn't throw: the action stands
+            await scope.Db.SaveChangesAsync(_ct);
+        }
+
+        Assert.Equal("Renamed", (await LoadAsync(trigger.Id)).Name);
+        Assert.Equal(1, api.Persistence.PostCommit.Count(trigger.Id));
+        // WidgetNoticeMisconfigured is raised by this test only
+        var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
+            logEvent.Level == LogEventLevel.Error
+            && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeMisconfigured) });
+        // Where it failed, without the message
+        Assert.Contains(
+            $"{nameof(MisconfiguredNoticeHandler)}..ctor", failure.Exception?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Smtp:Host", Render(failure), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,6 +181,60 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
 
         Assert.Equal(0, api.Persistence.PostCommit.Count(widget.Id));
     }
+
+    [Fact]
+    public async Task PostCommitHandlers_TransactionDisposedWithoutCommit_DoNotRunOnTheNextSave()
+    {
+        var rolledBack = new Widget("Rolled back");
+        var saved = new Widget("Saved");
+        await using var scope = api.Persistence.CreateScope(_user);
+
+        await using (var transaction = await scope.Db.Database.BeginTransactionAsync(_ct))
+        {
+            rolledBack.Publish(new WidgetNoticed(rolledBack.Id));
+            scope.Db.Widgets.Add(rolledBack);
+            await scope.Db.SaveChangesAsync(_ct);
+
+            // Disposed without commit or rollback, as on an early return
+        }
+
+        // A single insert: EF Core starts no transaction for it, so the interceptor sees nothing
+        saved.Publish(new WidgetNoticed(saved.Id));
+        scope.Db.Widgets.Add(saved);
+        await scope.Db.SaveChangesAsync(_ct);
+
+        Assert.Equal(0, api.Persistence.PostCommit.Count(rolledBack.Id));
+        Assert.Equal(1, api.Persistence.PostCommit.Count(saved.Id));
+    }
+
+    [Fact]
+    public async Task SaveChanges_AfterAFailedSave_Throws()
+    {
+        var (trigger, target) = await SaveWidgetsAsync();
+
+        await using (var scope = api.Persistence.CreateScope(_user))
+        {
+            var saved = await scope.Db.Widgets.SingleAsync(w => w.Id == trigger.Id, _ct);
+            saved.Publish(new WidgetBumpRequested(target.Id));
+            saved.Publish(new WidgetRejected());
+            await Assert.ThrowsAsync<DomainException>(() => scope.Db.SaveChangesAsync(_ct));
+
+            // The bump is still tracked, but its event is gone: saving it now would skip the post-commit phase
+            await Assert.ThrowsAsync<InvalidOperationException>(() => scope.Db.SaveChangesAsync(_ct));
+        }
+
+        Assert.Equal(0, (await LoadAsync(target.Id)).Bumps);
+    }
+
+    /// <summary>All a sink can write: the message, every property and the exception.</summary>
+    private static string Render(LogEvent logEvent) =>
+        string.Join(
+            Environment.NewLine,
+            [
+                logEvent.RenderMessage(CultureInfo.InvariantCulture),
+                .. logEvent.Properties.Select(property => property.ToString()),
+                logEvent.Exception?.ToString(),
+            ]);
 
     private async Task<(Widget Trigger, Widget Target)> SaveWidgetsAsync()
     {

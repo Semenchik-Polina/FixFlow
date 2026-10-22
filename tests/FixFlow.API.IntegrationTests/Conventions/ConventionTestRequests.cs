@@ -21,6 +21,9 @@ public sealed record Sample(
     string Name,
     Instant At,
     LocalDate On,
+    LocalTime OpensAt,
+    LocalDateTime VisitAt,
+    DateTimeZone TimeZone,
     Instant? NotSet,
     SampleStatus Status,
     IReadOnlyList<string> Tags);
@@ -40,8 +43,10 @@ internal sealed class GetCurrentSampleHandler(IClock clock) : IRequestHandler<Ge
     public Task<Result<Sample>> Handle(GetCurrentSample request, CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
-        return Task.FromResult<Result<Sample>>(
-            new Sample("Current", now, now.InUtc().Date, null, SampleStatus.InProgress, ["boiler"]));
+        var zone = DateTimeZoneProviders.Tzdb["Europe/Warsaw"];
+        var local = now.InZone(zone).LocalDateTime;
+        return Task.FromResult<Result<Sample>>(new Sample(
+            "Current", now, now.InUtc().Date, local.TimeOfDay, local, zone, null, SampleStatus.InProgress, ["boiler"]));
     }
 }
 
@@ -49,6 +54,9 @@ public sealed record EchoSample(
     string Name,
     Instant At,
     LocalDate On,
+    LocalTime OpensAt,
+    LocalDateTime VisitAt,
+    DateTimeZone TimeZone,
     Instant? NotSet,
     SampleStatus Status,
     IReadOnlyList<string> Tags) : IRequest<Result<Sample>>;
@@ -65,8 +73,16 @@ internal sealed class EchoSampleValidator : AbstractValidator<EchoSample>
 internal sealed class EchoSampleHandler : IRequestHandler<EchoSample, Result<Sample>>
 {
     public Task<Result<Sample>> Handle(EchoSample request, CancellationToken cancellationToken) =>
-        Task.FromResult<Result<Sample>>(
-            new Sample(request.Name, request.At, request.On, request.NotSet, request.Status, request.Tags));
+        Task.FromResult<Result<Sample>>(new Sample(
+            request.Name,
+            request.At,
+            request.On,
+            request.OpensAt,
+            request.VisitAt,
+            request.TimeZone,
+            request.NotSet,
+            request.Status,
+            request.Tags));
 }
 
 public sealed record ListSamples(int Page, int PageSize) : IRequest<Result<PagedResult<int>>>, IPagedQuery

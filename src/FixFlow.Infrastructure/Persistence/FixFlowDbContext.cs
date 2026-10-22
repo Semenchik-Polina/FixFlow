@@ -30,6 +30,9 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     /// <summary>Saved inside an explicit transaction, waiting for its commit.</summary>
     private readonly List<IDomainEvent> _pendingPostCommit = [];
 
+    /// <summary>Set by a save that threw: the context can't save again (<see cref="SaveChangesAsync"/>).</summary>
+    private bool _saveFailed;
+
     public FixFlowDbContext(
         DbContextOptions<FixFlowDbContext> options, ICurrentUser currentUser, DomainEventDispatcher domainEvents)
         : this((DbContextOptions)options, currentUser, domainEvents)
@@ -47,29 +50,58 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     /// <summary>Read by the organization filter on every query; EF Core turns it into a parameter.</summary>
     private Guid? CurrentOrganizationId => _currentUser.OrganizationId;
 
+    /// <summary>
+    /// Dispatches the domain events in two phases around the write. A save that throws ends the unit of work: its
+    /// events are already off their aggregates and the in-transaction handlers' changes are still tracked, so another
+    /// save would write those changes without their events, or apply them twice. It throws instead.
+    /// </summary>
     public override async Task<int> SaveChangesAsync(
         bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
-        var domainEvents = await DispatchInTransactionAsync(cancellationToken);
+        if (_saveFailed)
+        {
+            throw new InvalidOperationException(
+                "A save already failed in this unit of work. Try again in a new scope (a new request).");
+        }
 
+        List<IDomainEvent> domainEvents;
         int written;
         try
         {
-            written = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            domainEvents = await DispatchInTransactionAsync(cancellationToken);
+            written = await WriteAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch
+        {
+            _saveFailed = true;
+            throw;
+        }
+
+        if (Database.CurrentTransaction is not null)
+        {
+            // DomainEventsTransactionInterceptor dispatches them once the transaction commits
+            _pendingPostCommit.AddRange(domainEvents);
+            return written;
+        }
+
+        // Events still pending were saved in an explicit transaction disposed without commit or rollback, so rolled
+        // back. The interceptor drops them when the next transaction starts, but a save may start none.
+        _pendingPostCommit.Clear();
+        _pendingPostCommit.AddRange(domainEvents);
+        await DispatchPostCommitAsync();
+        return written;
+    }
+
+    private async Task<int> WriteAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
         catch (DbUpdateConcurrencyException exception)
         {
             throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
         }
-
-        _pendingPostCommit.AddRange(domainEvents);
-        if (Database.CurrentTransaction is null)
-        {
-            await DispatchPostCommitAsync();
-        }
-
-        // Otherwise DomainEventsTransactionInterceptor dispatches them once the transaction commits
-        return written;
     }
 
     /// <summary>Not supported: domain event handlers are async, and skipping them would break consistency.</summary>
@@ -98,8 +130,13 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(InfrastructureAssembly.Instance);
 
-        // Filters and keys belong to the root of a hierarchy; derived types inherit them
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => t.BaseType is null && !t.IsOwned()))
+        // Filters and keys belong to the root of a hierarchy; derived types inherit them. Shared-type entities (the
+        // join tables of many-to-many relationships) are property bags with no marker interfaces, and
+        // ModelBuilder.Entity(Type) can't reach them.
+        var roots = modelBuilder.Model
+            .GetEntityTypes()
+            .Where(t => t.BaseType is null && !t.IsOwned() && !t.HasSharedClrType);
+        foreach (var entityType in roots)
         {
             ApplyConventions(modelBuilder.Entity(entityType.ClrType));
         }
@@ -159,8 +196,9 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     }
 
     /// <summary>
-    /// Dispatches the events raised by tracked aggregates, then the events raised by those handlers, until none are
-    /// left. Returns them all for the post-commit phase.
+    /// Calls the in-transaction handlers of the events raised by tracked aggregates, then of the events those handlers
+    /// raise, until none are left. Returns every event: each one also goes to its post-commit handlers after the
+    /// commit. The phase belongs to the handler, not the event (ARCHITECTURE §12).
     /// </summary>
     private async Task<List<IDomainEvent>> DispatchInTransactionAsync(CancellationToken cancellationToken)
     {

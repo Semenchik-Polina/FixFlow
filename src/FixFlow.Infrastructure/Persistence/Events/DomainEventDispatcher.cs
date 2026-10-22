@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using FixFlow.Application.Events;
 using FixFlow.Domain;
+using FixFlow.Infrastructure.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FixFlow.Infrastructure.Persistence.Events;
 
@@ -10,7 +12,10 @@ namespace FixFlow.Infrastructure.Persistence.Events;
 /// Calls the handlers of a domain event (ADR 0005, plan P12). Handlers come from the request's scope, so
 /// in-transaction handlers change aggregates tracked by the same DbContext that is saving.
 /// </summary>
-public sealed partial class DomainEventDispatcher(IServiceProvider services, ILogger<DomainEventDispatcher> logger)
+public sealed partial class DomainEventDispatcher(
+    IServiceProvider services,
+    IOptions<ExceptionLoggingOptions> exceptionLogging,
+    ILogger<DomainEventDispatcher> logger)
 {
     private static readonly ConcurrentDictionary<Type, EventInvoker> _invokers = new();
 
@@ -27,9 +32,19 @@ public sealed partial class DomainEventDispatcher(IServiceProvider services, ILo
             domainEvent.GetType(),
             type => (EventInvoker)Activator.CreateInstance(typeof(EventInvoker<>).MakeGenericType(type))!);
 
+    /// <summary>
+    /// The exception's message can hold personal data (an SMTP error quoting the address), and log masking doesn't
+    /// cover exceptions (S26). Outside Development, logs get its types and stack traces only (ADR 0007).
+    /// </summary>
+    private Exception ForLog(Exception exception) =>
+        exceptionLogging.Value.KeepMessages ? exception : RedactedException.For(exception);
+
     // Types and IDs only: the exception carries the details, and the event's data stays out of the logs (S26)
     [LoggerMessage(Level = LogLevel.Error, Message = "Post-commit handler {Handler} failed for {DomainEvent}")]
     private partial void LogPostCommitFailure(Exception exception, string handler, string domainEvent);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Post-commit handlers for {DomainEvent} could not be created")]
+    private partial void LogPostCommitHandlersUnavailable(Exception exception, string domainEvent);
 
     /// <summary>Resolves and calls the handlers of one event type, without reflection per call.</summary>
     private abstract class EventInvoker
@@ -56,7 +71,20 @@ public sealed partial class DomainEventDispatcher(IServiceProvider services, ILo
         public override async Task PostCommitAsync(
             IServiceProvider services, IDomainEvent domainEvent, DomainEventDispatcher dispatcher)
         {
-            foreach (var handler in services.GetServices<IPostCommitEventHandler<TEvent>>())
+            IPostCommitEventHandler<TEvent>[] handlers;
+            try
+            {
+                handlers = [.. services.GetServices<IPostCommitEventHandler<TEvent>>()];
+            }
+            // The container creates them all at once, so one that can't be created leaves none of them to run. The
+            // action has committed all the same: logged, never surfaced (ADR 0005)
+            catch (Exception exception)
+            {
+                dispatcher.LogPostCommitHandlersUnavailable(dispatcher.ForLog(exception), typeof(TEvent).Name);
+                return;
+            }
+
+            foreach (var handler in handlers)
             {
                 try
                 {
@@ -66,7 +94,8 @@ public sealed partial class DomainEventDispatcher(IServiceProvider services, ILo
                 // Any failure of a side effect is logged, never surfaced (ADR 0005)
                 catch (Exception exception)
                 {
-                    dispatcher.LogPostCommitFailure(exception, handler.GetType().Name, typeof(TEvent).Name);
+                    dispatcher.LogPostCommitFailure(
+                        dispatcher.ForLog(exception), handler.GetType().Name, typeof(TEvent).Name);
                 }
             }
         }

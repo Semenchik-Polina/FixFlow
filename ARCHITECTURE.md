@@ -519,11 +519,28 @@ Conventions:
 
 ### Approach
 
-- **MVP:** domain events dispatched in-process (MediatR notifications) in two phases during `SaveChanges` (ADR 0005):
+- **MVP:** domain events dispatched in-process (`DomainEventDispatcher`, not MediatR) in two phases during
+  `SaveChanges` (ADR 0005):
   - **In-transaction** handlers keep aggregates consistent (work order Closed/Cancelled → request Closed/UnderReview)
     and commit or roll back with the change that raised the event.
-  - **Post-commit** handlers run side effects (tenant emails, cache invalidation). Their failures are logged (IDs only)
-    and never fail the action.
+  - **Post-commit** handlers run side effects (tenant emails, cache invalidation). Their failures are logged with
+    types and stack traces, without messages (ADR 0007), and never fail the action.
+  - **How an event flows.** The phase belongs to the handler (its interface), not to the event. Every event goes
+    through both phases, and an event can have handlers in either phase, both, or neither:
+    1. `SaveChangesAsync` takes the events off the tracked aggregates and calls their in-transaction handlers. Events
+       those handlers raise are dispatched the same way, round by round, until none are left.
+    2. The change and everything those handlers did are written in one transaction.
+    3. After the commit, every event from step 1, including those the handlers raised, goes to its post-commit
+       handlers.
+
+    For example, a work order is Closed. In the transaction, its handler closes the request, which raises the
+    request's Closed event. After the commit, the work order event invalidates the cache and the request event sends
+    the tenant the "Done" email. The aggregate doesn't know what reacts to its events, so a new reaction is a new
+    handler, with no change to the domain.
+      round 1: WorkOrderClosed          → in-transaction handler closes the request → raises RequestClosed
+      round 2: RequestClosed            → (no in-transaction handlers)
+      returns: [WorkOrderClosed, RequestClosed]
+      after commit: post-commit handlers of both → cache invalidation + tenant email
 - **Phase 2:** integration events written to the **MassTransit EF Core transactional outbox** during the in-transaction phase, in the same transaction as the business change, then delivered to **RabbitMQ**. Email moves to the `Notifications` worker.
 
 ### Integration events (initial catalog, in `FixFlow.Contracts`)
@@ -675,7 +692,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 - **S24.** Personal data (names, contacts, addresses, photos of homes) handled per GDPR principles: minimization, export and deletion on request, defined retention.
 - **S25.** Append-only audit log for status changes, assignments, cost approvals, role changes, invites and logins.
-- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields.
+- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields. Masking doesn't reach exceptions: failed post-commit handlers are logged with types and stack traces but no messages, except in Development (ADR 0007).
 
 ---
 

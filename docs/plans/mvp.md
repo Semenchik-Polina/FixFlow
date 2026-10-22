@@ -40,6 +40,7 @@ decision in the tables below.
 | P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
 | P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
 | P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
+| P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
 
 ## Assumptions (approved with this plan)
 
@@ -334,10 +335,17 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T1.4 Password reset & profile** · M
   Scope:
   - `IEmailSender` (MailKit → Mailpit) with templates.
+  - The sender catches MailKit failures and rethrows an exception that implements `ILogSafeMessage`, with the original
+    as its inner exception. The message comes from the SMTP status and error code (`SmtpCommandException.StatusCode`,
+    `ErrorCode`) or names the kind of failure (connect, authentication, TLS), so logs show why a send failed (P20).
   - `POST /auth/forgot-password`, which always returns 202.
   - `POST /auth/reset-password`: 1 h, single use, token in the URL fragment.
   - Signed-in users can change their password and edit their name.
   - Rate-limit both auth endpoints.
+  - Settings are read lazily, so the build-time OpenAPI document needs none. That includes the health checks: they
+    take their connection strings through a `Func<IServiceProvider, string>`, like `AddFixFlowPersistence`, and the
+    `BuildTimeDocument.IsGenerating` checks around them in `Program.cs` go. Otherwise each new setting needs one
+    more check (review of `dev`, 2026-10-21).
 
   DoD:
   - Integration tests:
@@ -346,7 +354,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a reset ends the user's other sessions
     - changing the password requires the current one; a name edit shows up in `/me`
     - rate limit → 429
-  - With SMTP down, the call still returns 202 and the failure is logged without the address.
+  - With SMTP down, the call still returns 202 and the failure is logged with the SMTP status, without the address.
 
 - [ ] **T1.5 Organization context & `ICurrentUser`** · L
   Scope, per §8:
@@ -384,12 +392,21 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Routing after login: one org → `/{slug}`, several → a picker, none → create an org.
   - `/:orgSlug` layout: org switcher, user menu, nav based on role, route guards (UX only).
   - The org slug is part of query keys, or the cache resets when switching.
+    Either way, a response is never cached under another org's key. `web/src/api/http.ts` reads `X-Organization` from
+    `window.location` when the fetch starts, so a refetch of the old page's queries during a switch goes out with
+    the new slug. Take the slug from the org the query belongs to, or cancel the old org's queries before the URL
+    changes. Callers still can't set the header themselves (review of `dev`, 2026-10-21).
+  - The 401 handler in `http.ts` recognizes the login page through a helper in `shared/routing/paths.ts`, not with
+    `pathname !== globalPaths.login`. That exact match misses `/login/` and `/LOGIN`, which the router renders as
+    the login page, so a 401 there reloads the page and clears the form (review of `dev`, 2026-10-21).
   - An "organization not found" page.
 
   DoD:
   - Component tests:
     - validation, and server field errors shown through `setError`
     - switching orgs drops org-scoped cache
+    - a query of org A that refetches during a switch to B never goes out with B's slug, or its result is dropped
+    - a 401 on `/login/` or `/LOGIN` doesn't redirect
   - Manual checks: two tabs in different orgs work independently; login and signup can be used with the keyboard alone.
 
 - [ ] **T1.8 E2E harness** · M
@@ -414,7 +431,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Schema `properties`; migration `AddPropertiesAndUnits`.
 
   DoD:
-  - Domain tests: `Europe/Kyiv` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
+  - Domain tests: `Europe/Warsaw` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
   - The model tests now cover real org-owned entities.
   - A DbContext test shows org A's data is invisible in org B's context, and soft-deleted rows are hidden.
 

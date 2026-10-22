@@ -9,6 +9,7 @@ using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
 using FixFlow.Hosting.Telemetry;
+using FixFlow.Infrastructure.Logging;
 using FixFlow.Infrastructure.Persistence;
 using NodaTime;
 using Serilog;
@@ -38,6 +39,9 @@ try
     builder.Services.AddFixFlowApplication();
     builder.Services.AddFixFlowPersistence(
         services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString());
+    // Local data is test data (S21); everywhere else, logged exceptions lose their messages (ADR 0007)
+    builder.Services.Configure<ExceptionLoggingOptions>(
+        options => options.KeepMessages = builder.Environment.IsDevelopment());
     builder.Services.AddFixFlowJson();
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();

@@ -26,13 +26,23 @@ public class AutoMigrationTests(FixFlowApiFactory api)
         app.StartServer();
 
         Assert.Equal(migrates, await HasMigrationsHistoryAsync(connectionString));
+        // Not even EF Core's history table (src/CLAUDE.md §4)
+        Assert.Equal("", await TablesInPublicAsync(connectionString));
     }
 
     private async Task<bool> HasMigrationsHistoryAsync(string connectionString)
     {
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
         await using var command = dataSource.CreateCommand(
-            """SELECT to_regclass('public."__EFMigrationsHistory"') IS NOT NULL""");
+            """SELECT to_regclass('migrations."__EFMigrationsHistory"') IS NOT NULL""");
         return (bool)(await command.ExecuteScalarAsync(_ct))!;
+    }
+
+    private async Task<string> TablesInPublicAsync(string connectionString)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        await using var command = dataSource.CreateCommand(
+            "SELECT coalesce(string_agg(tablename, ', '), '') FROM pg_tables WHERE schemaname = 'public'");
+        return (string)(await command.ExecuteScalarAsync(_ct))!;
     }
 }

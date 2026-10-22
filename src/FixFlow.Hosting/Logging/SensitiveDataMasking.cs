@@ -5,7 +5,8 @@ namespace FixFlow.Hosting.Logging;
 
 /// <summary>
 /// Masks sensitive values in every log event (S26). A safety net, not the rule: log IDs only (src/CLAUDE.md §7).
-/// Not covered: exception messages and stack traces. EF Core's EnableSensitiveDataLogging must stay off.
+/// Not covered: exception messages and stack traces (the post-commit dispatcher removes messages itself, ADR 0007).
+/// EF Core's EnableSensitiveDataLogging must stay off.
 /// </summary>
 public static class SensitiveDataMasking
 {

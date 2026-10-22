@@ -11,10 +11,17 @@ namespace FixFlow.API.OpenApi;
 /// </summary>
 internal sealed class NodaTimeSchemaTransformer : IOpenApiSchemaTransformer
 {
-    private static readonly Dictionary<Type, string> _formats = new()
+    /// <summary>
+    /// Formats from the OpenAPI format registry. Local values have no offset: the property's time zone places them
+    /// (§11). A time zone is written as its IANA id, e.g. <c>Europe/Warsaw</c>, which no format describes.
+    /// </summary>
+    private static readonly Dictionary<Type, string?> _formats = new()
     {
         [typeof(Instant)] = "date-time",
         [typeof(LocalDate)] = "date",
+        [typeof(LocalTime)] = "time-local",
+        [typeof(LocalDateTime)] = "date-time-local",
+        [typeof(DateTimeZone)] = null,
     };
 
     public static bool Handles(Type type) => _formats.ContainsKey(Nullable.GetUnderlyingType(type) ?? type);

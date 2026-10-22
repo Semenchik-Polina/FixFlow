@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using FixFlow.API.Auth;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.Hosting.Logging;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
@@ -10,9 +12,17 @@ using Serilog.Extensions.Hosting;
 
 namespace FixFlow.API.IntegrationTests.Hosting;
 
-public class RequestLogContextMiddlewareTests
+public class RequestLogContextMiddlewareTests(FixFlowApiFactory api)
 {
     private const string OrganizationClaimType = "test:organization_id";
+
+    [Fact]
+    public void Api_ReadsTheOrganizationContextClaim()
+    {
+        var options = api.Services.GetRequiredService<IOptions<RequestLogContextOptions>>().Value;
+
+        Assert.Equal(FixFlowClaimTypes.OrganizationId, options.OrganizationIdClaimType);
+    }
 
     [Fact]
     public async Task InvokeAsync_UserAndOrganizationClaims_AddsIdsToLogsCompletionEventAndTrace()

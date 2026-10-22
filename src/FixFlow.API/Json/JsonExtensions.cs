@@ -17,7 +17,8 @@ public static class JsonExtensions
         services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            // Names only: a number would bind to any value, even one the enum doesn't define
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
             options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
         });
 }

@@ -14,5 +14,6 @@ public interface IFixFlowDbContext
     /// <summary>For a command that saves more than once in one transaction (<c>BeginTransactionAsync</c>).</summary>
     DatabaseFacade Database { get; }
 
+    /// <summary>Once a save throws, the unit of work is over: saving again throws. Retry in a new request.</summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
