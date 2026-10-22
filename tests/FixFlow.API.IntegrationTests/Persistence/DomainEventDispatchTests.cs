@@ -207,6 +207,25 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         Assert.Equal(1, api.Persistence.PostCommit.Count(saved.Id));
     }
 
+    [Fact]
+    public async Task SaveChanges_AfterAFailedSave_Throws()
+    {
+        var (trigger, target) = await SaveWidgetsAsync();
+
+        await using (var scope = api.Persistence.CreateScope(_user))
+        {
+            var saved = await scope.Db.Widgets.SingleAsync(w => w.Id == trigger.Id, _ct);
+            saved.Publish(new WidgetBumpRequested(target.Id));
+            saved.Publish(new WidgetRejected());
+            await Assert.ThrowsAsync<DomainException>(() => scope.Db.SaveChangesAsync(_ct));
+
+            // The bump is still tracked, but its event is gone: saving it now would skip the post-commit phase
+            await Assert.ThrowsAsync<InvalidOperationException>(() => scope.Db.SaveChangesAsync(_ct));
+        }
+
+        Assert.Equal(0, (await LoadAsync(target.Id)).Bumps);
+    }
+
     /// <summary>All a sink can write: the message, every property and the exception.</summary>
     private static string Render(LogEvent logEvent) =>
         string.Join(

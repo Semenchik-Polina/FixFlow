@@ -30,6 +30,9 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     /// <summary>Saved inside an explicit transaction, waiting for its commit.</summary>
     private readonly List<IDomainEvent> _pendingPostCommit = [];
 
+    /// <summary>Set by a save that threw: the context can't save again (<see cref="SaveChangesAsync"/>).</summary>
+    private bool _saveFailed;
+
     public FixFlowDbContext(
         DbContextOptions<FixFlowDbContext> options, ICurrentUser currentUser, DomainEventDispatcher domainEvents)
         : this((DbContextOptions)options, currentUser, domainEvents)
@@ -47,19 +50,31 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     /// <summary>Read by the organization filter on every query; EF Core turns it into a parameter.</summary>
     private Guid? CurrentOrganizationId => _currentUser.OrganizationId;
 
+    /// <summary>
+    /// Dispatches the domain events in two phases around the write. A save that throws ends the unit of work: its
+    /// events are already off their aggregates and the in-transaction handlers' changes are still tracked, so another
+    /// save would write those changes without their events, or apply them twice. It throws instead.
+    /// </summary>
     public override async Task<int> SaveChangesAsync(
         bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
-        var domainEvents = await DispatchInTransactionAsync(cancellationToken);
+        if (_saveFailed)
+        {
+            throw new InvalidOperationException(
+                "A save already failed in this unit of work. Try again in a new scope (a new request).");
+        }
 
+        List<IDomainEvent> domainEvents;
         int written;
         try
         {
-            written = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            domainEvents = await DispatchInTransactionAsync(cancellationToken);
+            written = await WriteAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch
         {
-            throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
+            _saveFailed = true;
+            throw;
         }
 
         if (Database.CurrentTransaction is not null)
@@ -75,6 +90,18 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
         _pendingPostCommit.AddRange(domainEvents);
         await DispatchPostCommitAsync();
         return written;
+    }
+
+    private async Task<int> WriteAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
+        }
     }
 
     /// <summary>Not supported: domain event handlers are async, and skipping them would break consistency.</summary>
