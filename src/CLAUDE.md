@@ -145,6 +145,9 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 
 - Structured logging with message templates (`"Work order {WorkOrderId} assigned"`), never string interpolation.
 - Log IDs (`WorkOrderId`, `OrganizationId`, `UserId`) — never names, emails, phone numbers, addresses, tokens or SAS URLs.
+- Exception messages can hold personal data. A failed post-commit handler is logged without them outside Development
+  (ADR 0007). To log a reason, throw an exception that implements `ILogSafeMessage`, with a message built from IDs,
+  codes and fixed text only.
 
 ---
 

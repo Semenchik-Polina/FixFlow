@@ -675,7 +675,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 - **S24.** Personal data (names, contacts, addresses, photos of homes) handled per GDPR principles: minimization, export and deletion on request, defined retention.
 - **S25.** Append-only audit log for status changes, assignments, cost approvals, role changes, invites and logins.
-- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields.
+- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields. Masking doesn't reach exceptions: failed post-commit handlers are logged with types and stack traces but no messages, except in Development (ADR 0007).
 
 ---
 

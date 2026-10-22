@@ -1,3 +1,4 @@
+using System.Globalization;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Persistence.TestModel;
 using FixFlow.Domain;
@@ -85,10 +86,18 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         // The other handler of the event still ran
         Assert.Equal(1, api.Persistence.PostCommit.Count(trigger.Id));
         // WidgetNoticeFailed is raised by this test only
-        Assert.Contains(api.Persistence.Logs.Events, logEvent =>
+        var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
             logEvent.Level == LogEventLevel.Error
             && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeFailed) }
             && logEvent.Properties["Handler"] is ScalarValue { Value: nameof(FailingNoticeHandler) });
+        // Its type and stack trace, but not its message: it quotes an email address (S26, ADR 0007)
+        var exception = failure.Exception?.ToString() ?? "";
+        Assert.StartsWith("System.InvalidOperationException: [message removed]", exception, StringComparison.Ordinal);
+        Assert.Contains(
+            $"{nameof(FailingNoticeHandler)}.{nameof(FailingNoticeHandler.Handle)}",
+            exception,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("example.test", Render(failure), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,6 +153,16 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
 
         Assert.Equal(0, api.Persistence.PostCommit.Count(widget.Id));
     }
+
+    /// <summary>All a sink can write: the message, every property and the exception.</summary>
+    private static string Render(LogEvent logEvent) =>
+        string.Join(
+            Environment.NewLine,
+            [
+                logEvent.RenderMessage(CultureInfo.InvariantCulture),
+                .. logEvent.Properties.Select(property => property.ToString()),
+                logEvent.Exception?.ToString(),
+            ]);
 
     private async Task<(Widget Trigger, Widget Target)> SaveWidgetsAsync()
     {

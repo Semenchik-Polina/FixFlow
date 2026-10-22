@@ -40,6 +40,7 @@ decision in the tables below.
 | P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
 | P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
 | P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
+| P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
 
 ## Assumptions (approved with this plan)
 
@@ -334,6 +335,9 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T1.4 Password reset & profile** · M
   Scope:
   - `IEmailSender` (MailKit → Mailpit) with templates.
+  - The sender catches MailKit failures and rethrows an exception that implements `ILogSafeMessage`, with the original
+    as its inner exception. The message comes from the SMTP status and error code (`SmtpCommandException.StatusCode`,
+    `ErrorCode`) or names the kind of failure (connect, authentication, TLS), so logs show why a send failed (P20).
   - `POST /auth/forgot-password`, which always returns 202.
   - `POST /auth/reset-password`: 1 h, single use, token in the URL fragment.
   - Signed-in users can change their password and edit their name.
@@ -346,7 +350,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a reset ends the user's other sessions
     - changing the password requires the current one; a name edit shows up in `/me`
     - rate limit → 429
-  - With SMTP down, the call still returns 202 and the failure is logged without the address.
+  - With SMTP down, the call still returns 202 and the failure is logged with the SMTP status, without the address.
 
 - [ ] **T1.5 Organization context & `ICurrentUser`** · L
   Scope, per §8:

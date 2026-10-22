@@ -25,6 +25,9 @@ public sealed record WidgetNoticed(Guid WidgetId) : IDomainEvent;
 /// <summary>Post-commit: one handler fails, the other still records it.</summary>
 public sealed record WidgetNoticeFailed(Guid WidgetId) : IDomainEvent;
 
+/// <summary>Post-commit: the handler throws what <see cref="Create"/> returns (how failures are logged).</summary>
+public sealed record WidgetSideEffectThrew(Func<Exception> Create) : IDomainEvent;
+
 internal sealed class BumpTargetHandler(TestDbContext db) : IInTransactionEventHandler<WidgetBumpRequested>
 {
     public async Task Handle(WidgetBumpRequested domainEvent, CancellationToken cancellationToken)
@@ -67,8 +70,15 @@ internal sealed class RecordNoticeHandler(PostCommitRecorder recorder)
 
 internal sealed class FailingNoticeHandler : IPostCommitEventHandler<WidgetNoticeFailed>
 {
+    // Like an SMTP error, the message quotes an address: it must stay out of the logs
     public Task Handle(WidgetNoticeFailed domainEvent, CancellationToken cancellationToken) =>
-        throw new InvalidOperationException("SMTP is down");
+        throw new InvalidOperationException("550 5.1.1 <jane.doe@example.test>: Recipient address rejected");
+}
+
+internal sealed class ThrowingSideEffectHandler : IPostCommitEventHandler<WidgetSideEffectThrew>
+{
+    public Task Handle(WidgetSideEffectThrew domainEvent, CancellationToken cancellationToken) =>
+        throw domainEvent.Create();
 }
 
 /// <summary>How often the post-commit handlers saw each widget. Shared by parallel tests: read only your own ids.</summary>
