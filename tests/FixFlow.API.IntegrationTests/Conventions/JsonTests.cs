@@ -43,6 +43,27 @@ public class JsonTests(FixFlowApiFactory api)
         AssertJsonEqual(Sample, await response.Content.ReadAsStringAsync(cancellationToken));
     }
 
+    [Theory]
+    [InlineData("1")]
+    [InlineData("\"1\"")]
+    public async Task Post_Sample_NumericEnumValue_Returns400(string status)
+    {
+        // Enums are names only: a number would bind to any value, even an undefined one
+        var sample =
+            $$"""
+            {"name":"Echo","at":"2026-03-29T00:00:00Z","on":"2026-03-29","opensAt":"08:30:00","visitAt":"2026-03-29T09:15:00","timeZone":"Europe/Warsaw","status":{{status}},"tags":[]}
+            """;
+        using var client = api.CreateApiClient();
+        using var content = new StringContent(sample, Encoding.UTF8, "application/json");
+
+        using var response = await client.PostAsync(
+            new Uri($"{ConventionTestEndpoints.Path}/samples", UriKind.Relative),
+            content,
+            TestContext.Current.CancellationToken);
+
+        await response.ReadProblemAsync(HttpStatusCode.BadRequest);
+    }
+
     private static void AssertJsonEqual(string expected, string actual) =>
         Assert.True(
             JsonNode.DeepEquals(JsonNode.Parse(expected), JsonNode.Parse(actual)),
