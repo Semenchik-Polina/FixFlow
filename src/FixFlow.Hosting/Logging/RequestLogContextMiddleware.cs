@@ -11,7 +11,7 @@ public sealed class RequestLogContextOptions
 {
     public string UserIdClaimType { get; set; } = ClaimTypes.NameIdentifier;
 
-    /// <summary>Set by the API once the organization context adds the claim (T1.5).</summary>
+    /// <summary>Set by the API to the claim the organization context adds (T1.5).</summary>
     public string? OrganizationIdClaimType { get; set; }
 }
 

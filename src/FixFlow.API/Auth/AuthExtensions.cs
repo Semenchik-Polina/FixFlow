@@ -1,4 +1,5 @@
 using FixFlow.Application.Auth;
+using FixFlow.Hosting.Logging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 
@@ -40,6 +41,9 @@ public static class AuthExtensions
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        // The organization's id joins the request's logs and trace as soon as T1.5 adds the claim
+        services.Configure<RequestLogContextOptions>(
+            options => options.OrganizationIdClaimType = FixFlowClaimTypes.OrganizationId);
 
         return services;
     }
