@@ -342,6 +342,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - `POST /auth/reset-password`: 1 h, single use, token in the URL fragment.
   - Signed-in users can change their password and edit their name.
   - Rate-limit both auth endpoints.
+  - Settings are read lazily, so the build-time OpenAPI document needs none. That includes the health checks: they
+    take their connection strings through a `Func<IServiceProvider, string>`, like `AddFixFlowPersistence`, and the
+    `BuildTimeDocument.IsGenerating` checks around them in `Program.cs` go. Otherwise each new setting needs one
+    more check (review of `dev`, 2026-10-21).
 
   DoD:
   - Integration tests:
@@ -388,12 +392,21 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Routing after login: one org → `/{slug}`, several → a picker, none → create an org.
   - `/:orgSlug` layout: org switcher, user menu, nav based on role, route guards (UX only).
   - The org slug is part of query keys, or the cache resets when switching.
+    Either way, a response is never cached under another org's key. `web/src/api/http.ts` reads `X-Organization` from
+    `window.location` when the fetch starts, so a refetch of the old page's queries during a switch goes out with
+    the new slug. Take the slug from the org the query belongs to, or cancel the old org's queries before the URL
+    changes. Callers still can't set the header themselves (review of `dev`, 2026-10-21).
+  - The 401 handler in `http.ts` recognizes the login page through a helper in `shared/routing/paths.ts`, not with
+    `pathname !== globalPaths.login`. That exact match misses `/login/` and `/LOGIN`, which the router renders as
+    the login page, so a 401 there reloads the page and clears the form (review of `dev`, 2026-10-21).
   - An "organization not found" page.
 
   DoD:
   - Component tests:
     - validation, and server field errors shown through `setError`
     - switching orgs drops org-scoped cache
+    - a query of org A that refetches during a switch to B never goes out with B's slug, or its result is dropped
+    - a 401 on `/login/` or `/LOGIN` doesn't redirect
   - Manual checks: two tabs in different orgs work independently; login and signup can be used with the keyboard alone.
 
 - [ ] **T1.8 E2E harness** · M
@@ -418,7 +431,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Schema `properties`; migration `AddPropertiesAndUnits`.
 
   DoD:
-  - Domain tests: `Europe/Kyiv` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
+  - Domain tests: `Europe/Warsaw` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
   - The model tests now cover real org-owned entities.
   - A DbContext test shows org A's data is invisible in org B's context, and soft-deleted rows are hidden.
 
