@@ -36,10 +36,18 @@ FixFlow.Application/WorkOrders/
 ├─ WorkOrderAuthorizationHandler.cs
 └─ WorkOrderQueryExtensions.cs        # .VisibleTo(user)
 
-FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # MapGroup("/api/v1/work-orders")
+FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-orders" → /api/v1/work-orders
 ```
 
-- Endpoints are thin: bind → `sender.Send(command)` → map result to `TypedResults`. No business logic in endpoints.
+- A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
+  `MapFixFlowApi()` maps it under `/api/v1` in its own group.
+- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToNoContent()` (`ResultExtensions`), which map
+  the handler's `Result` to `TypedResults`. No business logic in endpoints.
+- Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
+  `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
+  validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.
+- List queries implement `IPagedQuery`, return `PagedResult<T>`, and their validator derives from
+  `PagedQueryValidator<T>` (pageSize ≤ 100).
 - Every endpoint declares `.RequireAuthorization(<policy>)`; anonymous ones use `.AllowAnonymous()` explicitly.
 - Every endpoint declares its responses (`Produces<T>()`, `ProducesProblem(...)`) so the OpenAPI client is accurate.
 
@@ -54,25 +62,31 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # MapGroup("/api/v1/work-orders")
   domain event. Allowed transitions/roles: `ARCHITECTURE.md` §7.
 - Business rule violations throw `DomainException` (mapped to **422** Problem Details);
   concurrency conflicts map to **409**; not found / not authorized to see → **404**.
-- Domain events: past-tense records (`WorkOrderAssigned`), collected on the aggregate, dispatched in two phases during
-  `SaveChanges` (ADR 0005):
-  - **in-transaction** handlers keep other aggregates consistent (WO Closed → request Closed) and commit or roll back
-    with the change. They change tracked aggregates only — never email, HTTP, Blob or other I/O;
-  - **post-commit** handlers run side effects (email, cache invalidation): catch and log failures (IDs only), never
-    fail the action, never write business data.
+- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`.
+- Domain events: past-tense `IDomainEvent` records (`WorkOrderAssigned`), raised with `Raise(...)` on the aggregate,
+  dispatched in two phases during `SaveChangesAsync` (ADR 0005, plan P12):
+  - **in-transaction** handlers (`IInTransactionEventHandler<TEvent>`) keep other aggregates consistent (WO Closed →
+    request Closed) and commit or roll back with the change. They change tracked aggregates only — never email, HTTP,
+    Blob or other I/O;
+  - **post-commit** handlers (`IPostCommitEventHandler<TEvent>`) run side effects (email, cache invalidation). The
+    dispatcher logs their failures and never fails the action; they never write business data.
 
 ---
 
 ## 4. Persistence (EF Core + PostgreSQL)
 
-- One `FixFlowDbContext`; schema per module (`requests`, `workorders`, `properties`, `identity`, ...).
+- One `FixFlowDbContext`; handlers use it through `IFixFlowDbContext` (Application), where each module adds its
+  `DbSet`s (plan P13). Schema per module: `ToTable("work_orders", Schemas.WorkOrders)`; nothing in `public`.
 - Entity configuration in `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` (`IEntityTypeConfiguration<T>`).
   No data annotations on domain entities.
 - snake_case naming for tables/columns (`UseSnakeCaseNamingConvention()`).
-- Organization-owned entities implement `IOrganizationOwned`; `OrganizationId` is set by a `SaveChanges` interceptor
-  and filtered by a global query filter. Soft delete (`DeletedAt`) is a second global filter.
-- Auditing fields (`CreatedAt/By`, `UpdatedAt/By`) are set by an interceptor using `IClock` and the current user.
-- Concurrency: `xmin` row version on `WorkOrder` and `MaintenanceRequest`.
+- Conventions come from marker interfaces (Domain); configurations don't repeat them:
+  - `IOrganizationOwned`: `OrganizationId` set on insert from `ICurrentUser`, writes for another org throw, and the
+    `QueryFilters.Organization` filter;
+  - `ISoftDeletable`: the `QueryFilters.SoftDelete` filter on `DeletedAt` (set by the aggregate's own method);
+  - `IAuditable`: `CreatedAt/By`, `UpdatedAt/By` set from `IClock` and the current user;
+  - `IHasRowVersion`: `RowVersion` mapped to `xmin` (on `WorkOrder` and `MaintenanceRequest`).
+- The model tests (`tests/.../Persistence/ModelConventionTests.cs`) check every entity against these conventions.
 - NodaTime mapping via `UseNodaTime()`: `Instant` ↔ `timestamptz`, `LocalTime` ↔ `time`, `LocalDate` ↔ `date`.
 - Queries: `AsNoTracking()`, project to DTOs with `Select`, always paginate lists. No `ToList()` before filtering.
 
@@ -131,6 +145,9 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 
 - Structured logging with message templates (`"Work order {WorkOrderId} assigned"`), never string interpolation.
 - Log IDs (`WorkOrderId`, `OrganizationId`, `UserId`) — never names, emails, phone numbers, addresses, tokens or SAS URLs.
+- Exception messages can hold personal data. A failed post-commit handler is logged without them outside Development
+  (ADR 0007). To log a reason, throw an exception that implements `ILogSafeMessage`, with a message built from IDs,
+  codes and fixed text only.
 
 ---
 
@@ -145,4 +162,11 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 
 - Test naming: `Method_Scenario_ExpectedResult`.
 - Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
+  Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
+- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
+  constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
+  cookies, no redirects); `.WithOrganization(slug)` sets `X-Organization`.
+- Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
+  resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
+- The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.
 - Run focused: `dotnet test <project> --filter "FullyQualifiedName~<Name>"`.

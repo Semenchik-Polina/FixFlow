@@ -32,6 +32,7 @@ would cover both only arrives in Phase 2 (D12).
 3. **Post-commit phase**, after the transaction commits:
    - All events of the unit of work go to post-commit handlers.
    - Each handler's exceptions are caught and logged with the event type and IDs only, and never rethrown.
+     Refined by ADR 0007: the log also has the exception's types and stack traces, without its messages.
    - Post-commit handlers don't write business data.
    - When a command spans an explicit transaction (several saves), the post-commit phase runs once, after that
      transaction commits.

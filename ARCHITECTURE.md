@@ -103,10 +103,11 @@ Tenant submits request → Manager triages → Work order created & assigned
 - Technician PWA with offline support
 - AI triage (Claude API): auto-categorization, urgency suggestion, thread summaries
 - QR codes per unit/asset, public API and webhooks
+- **In Phase 3:** decide whether to add a dark theme (Q14)
 
 ### Explicitly out of scope for MVP
 
-Realtime, SLAs, scheduling, costs, Redis, RabbitMQ, multiple workers, payments, AI, mobile apps, custom permissions, per-organization branding, MFA, email confirmation, cloud hosting, localization (English only).
+Realtime, SLAs, scheduling, costs, Redis, RabbitMQ, multiple workers, payments, AI, mobile apps, custom permissions, per-organization branding, MFA, email confirmation, cloud hosting, localization (English only), dark theme (light only).
 
 ### Planning assumptions
 
@@ -142,7 +143,7 @@ Each decision below should have a corresponding ADR in `docs/adr/NNNN-title.md` 
 | D19 | Local orchestration | **Docker Compose** for infrastructure; API, workers and Vite run on the host (optional `full` profile runs everything in containers) |
 | D20 | Hosting | **Local only** through Phase 2. "Production-like" = Compose `full` profile with 2 API replicas behind nginx. Public demo/hosting decided at the end of Phase 2 (no paid cloud accounts) |
 | D21 | Email | **Mailpit** (catches all mail). A real provider only if/when hosting is decided |
-| D22 | Repo | **Monorepo** (`src/`, `web/`, `tests/`, `docs/`), trunk-based with short-lived branches |
+| D22 | Repo | **Monorepo** (`src/`, `web/`, `tests/`, `docs/`). Short-lived feature branches merge into **`dev`**; `dev` merges into `main` at milestones with a merge commit (ADR 0006) |
 | D23 | Visibility | **Public GitHub repository**, MIT licence. No secrets and no real personal data in code, seeds or fixtures |
 | D24 | Organizations | **Public self-signup**: whoever creates an organization becomes its first Admin |
 | D25 | Request triage | A manager **always** accepts or rejects a request before a work order exists; accepting creates the work order in the same transaction (ADR 0002) |
@@ -218,7 +219,7 @@ Api (endpoints, hubs)  →  Application (commands, queries, validators)  →  Do
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
+| Frontend | React 19, TypeScript, Vite, **MUI**, TanStack Query, React Router, React Hook Form + Zod, `@microsoft/signalr` |
 | API client | TypeScript types/clients generated from OpenAPI (orval) |
 | Backend | .NET 10, ASP.NET Core Minimal APIs, SignalR |
 | Application | MediatR **12.x** (last Apache-2.0 line, ADR 0004), FluentValidation |
@@ -518,11 +519,28 @@ Conventions:
 
 ### Approach
 
-- **MVP:** domain events dispatched in-process (MediatR notifications) in two phases during `SaveChanges` (ADR 0005):
+- **MVP:** domain events dispatched in-process (`DomainEventDispatcher`, not MediatR) in two phases during
+  `SaveChanges` (ADR 0005):
   - **In-transaction** handlers keep aggregates consistent (work order Closed/Cancelled → request Closed/UnderReview)
     and commit or roll back with the change that raised the event.
-  - **Post-commit** handlers run side effects (tenant emails, cache invalidation). Their failures are logged (IDs only)
-    and never fail the action.
+  - **Post-commit** handlers run side effects (tenant emails, cache invalidation). Their failures are logged with
+    types and stack traces, without messages (ADR 0007), and never fail the action.
+  - **How an event flows.** The phase belongs to the handler (its interface), not to the event. Every event goes
+    through both phases, and an event can have handlers in either phase, both, or neither:
+    1. `SaveChangesAsync` takes the events off the tracked aggregates and calls their in-transaction handlers. Events
+       those handlers raise are dispatched the same way, round by round, until none are left.
+    2. The change and everything those handlers did are written in one transaction.
+    3. After the commit, every event from step 1, including those the handlers raised, goes to its post-commit
+       handlers.
+
+    For example, a work order is Closed. In the transaction, its handler closes the request, which raises the
+    request's Closed event. After the commit, the work order event invalidates the cache and the request event sends
+    the tenant the "Done" email. The aggregate doesn't know what reacts to its events, so a new reaction is a new
+    handler, with no change to the domain.
+      round 1: WorkOrderClosed          → in-transaction handler closes the request → raises RequestClosed
+      round 2: RequestClosed            → (no in-transaction handlers)
+      returns: [WorkOrderClosed, RequestClosed]
+      after commit: post-commit handlers of both → cache invalidation + tenant email
 - **Phase 2:** integration events written to the **MassTransit EF Core transactional outbox** during the in-transaction phase, in the same transaction as the business change, then delivered to **RabbitMQ**. Email moves to the `Notifications` worker.
 
 ### Integration events (initial catalog, in `FixFlow.Contracts`)
@@ -616,7 +634,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 ## 16. Frontend architecture
 
-- **Vite + React 18 + TypeScript (strict)**, **MUI** components and theming (light/dark).
+- **Vite + React 19 + TypeScript (strict)**, **MUI** components and theming (light theme only; dark theme is open question Q14).
 - **Feature-based folders** (`features/requests`, `features/work-orders`, ...), each with pages, components, hooks and API calls.
 - **Server state:** TanStack Query (query keys per resource, invalidation on mutations and on SignalR events).
 - **Forms:** React Hook Form + Zod schemas (mirroring server validation; server remains authoritative).
@@ -674,7 +692,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 - **S24.** Personal data (names, contacts, addresses, photos of homes) handled per GDPR principles: minimization, export and deletion on request, defined retention.
 - **S25.** Append-only audit log for status changes, assignments, cost approvals, role changes, invites and logins.
-- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields.
+- **S26.** No personal data, tokens, cookies or SAS URLs in logs; Serilog destructuring policies mask sensitive fields. Masking doesn't reach exceptions: failed post-commit handlers are logged with types and stack traces but no messages, except in Development (ADR 0007).
 
 ---
 
@@ -682,7 +700,7 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
 
 - **Logging:** Serilog, structured JSON, enriched with `TraceId`, `OrganizationId`, `UserId` (ids only, no personal data).
 - **Tracing and metrics:** OpenTelemetry across API, EF Core, HTTP, Redis and MassTransit; trace context propagates through messages.
-- **Local:** **Seq** (Docker Compose) receives structured logs and OTLP traces from the API and workers.
+- **Local:** **Seq** (Docker Compose) receives structured logs, and OTLP traces and metrics, from the API and workers.
 - **Production-like (Compose `full` profile):** also Seq. A hosted backend is chosen together with hosting (end of Phase 2).
 - **Health checks:** `/health/live` and `/health/ready` (Postgres, Redis, RabbitMQ, Blob).
 - **Key metrics/alerts:** API error rate and p95 latency, outbox backlog, DLQ depth, SLA breaches, failed email sends.
@@ -732,28 +750,33 @@ If Redis is unavailable, the cache falls back to L1/database and realtime works 
   cd web && npm run dev
   ```
 - `docker compose --profile full up` also builds and runs the API and workers as containers (used for E2E tests and demoing).
+  The API runs as Production and serves the SPA at https://localhost:8443 with the host's exported ASP.NET Core dev
+  certificate; a one-shot `migrate` service applies the migrations before it starts.
   From Phase 2: `docker compose --profile full up --scale api=2` runs two API replicas behind an `nginx` reverse proxy
   (sticky sessions off) to verify the SignalR Redis backplane and stateless API behavior.
-- Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `localhost`); a `.env.example` documents Compose variables.
+- Connection strings for local development live in `appsettings.Development.json` (non-secret, pointing to `127.0.0.1`,
+  where Compose publishes the ports); the database password comes only from `Database:Password` (user-secrets). A `.env.example` documents Compose variables.
 - Migrations applied automatically in Development; demo seed data loaded.
 - Secrets via `dotnet user-secrets`.
 
 ### PostgreSQL versions and upgrades
 
 - **Version:** PostgreSQL 18 on the Debian image, pinned to an exact patch and Debian release in `docker-compose.yml`
-  (started on `postgres:18.6-trixie`). Testcontainers uses the same tag; the two always change together.
+  (started on `postgres:18.6-trixie`). Testcontainers reads the tag from `docker-compose.yml`, so the tests always
+  run on the Compose image and a Dependabot bump is tested on its own PR.
 - **Data volume:** mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`. From 18 the image keeps each major
   version's cluster in `/var/lib/postgresql/<major>/docker`, so the old and new clusters can sit side by side in one
   volume during an upgrade.
 - **Patch updates** (18.6 → 18.7) arrive as Dependabot PRs. The on-disk format doesn't change: pull the image and recreate the container.
 - **Major upgrades** (18 → 19) are deliberate, and Dependabot ignores them. The new image starts an **empty** cluster
   next to the old one, so the data has to be carried over:
-  1. Run the backend tests against the new major first (change the Testcontainers tag).
+  1. Run the backend tests against the new major first: change the tag in `docker-compose.yml` on the upgrade branch and
+     run `dotnet test` before recreating the local containers (Testcontainers follows the tag).
   2. Local data is synthetic: `docker compose down -v` and start again; the init script, migrations and seed rebuild it.
   3. To keep local data instead: `pg_dump -Fc` the app database inside the container, copy the file out with
      `docker compose cp` (don't redirect binary output through PowerShell), switch the tag, and `pg_restore` it after the
      init script has recreated the role and database. `pg_upgrade --link` inside the shared volume is the faster route for large data.
-  4. Change the tag in Compose and Testcontainers, and the major version in this section, in the same PR.
+  4. Change the tag in Compose and the major version in this section in the same PR.
 - **Debian release:** changing it (e.g. `trixie` → its successor) can change glibc collation rules and invalidate text
   indexes. Treat it like a major upgrade: run `REINDEX DATABASE` and `ALTER DATABASE ... REFRESH COLLATION VERSION` afterwards.
 - **Hosting** (end of Phase 2) needs a provider that offers PostgreSQL 18 or newer.
@@ -785,7 +808,8 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 
 - `.editorconfig`, nullable reference types enabled, `TreatWarningsAsErrors`.
 - ESLint + Prettier for the SPA.
-- Conventional commits; short-lived feature branches; squash merge.
+- Conventional commits; short-lived feature branches off `dev`, squash-merged (a merge commit for a bigger branch whose
+  commits are worth keeping); `dev` → `main` at milestones with a merge commit (ADR 0006).
 
 ---
 
@@ -843,7 +867,9 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 - `Serilog.AspNetCore`, `OpenTelemetry.*`
 - `AspNetCore.HealthChecks.*` (NpgSql, Redis, RabbitMQ, Azure Storage)
 - `Serilog.Sinks.Seq`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`
-- Tests: `xunit`, `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `Testcontainers.RabbitMq`, `Testcontainers.Azurite`
+- `Serilog.Enrichers.Sensitive` (log masking, S26)
+- Tests: `xunit`, `Microsoft.AspNetCore.Mvc.Testing`, `NodaTime.Testing`, `Testcontainers.PostgreSql`,
+  `Testcontainers.Redis`, `Testcontainers.RabbitMq`, `Testcontainers.Azurite`
 
 **Frontend**
 
@@ -895,3 +921,4 @@ Each MVP slice extends the critical flow. It is complete (submit → assign → 
 | Q8 | Can managers be restricted to specific properties? | *No; add `ManagerPropertyAssignment` later if needed* |
 | Q9 | Data retention periods for closed work orders and photos? | *Keep work orders indefinitely; photos 3 years, then archive* |
 | Q13 | Can users opt out of non-critical emails? | *Yes, per user (Phase 2)* |
+| Q14 | Should the app offer a dark theme? | *Light only until then; decide in Phase 3. Components use theme tokens only, so a dark palette can be added later without touching them* |

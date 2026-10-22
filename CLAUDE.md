@@ -6,7 +6,7 @@ Guidance for AI coding agents working on **FixFlow**: a multi-tenant maintenance
 Terms: **organization** = the SaaS customer and data boundary; **tenant** = the renter role only.
 "Tenant isolation" / "cross-tenant" are the technical terms for isolation between organizations.
 
-Stack: .NET 10 (Minimal APIs, EF Core, PostgreSQL, MediatR, NodaTime) · React 18 + TS + Vite + MUI + TanStack Query ·
+Stack: .NET 10 (Minimal APIs, EF Core, PostgreSQL, MediatR, NodaTime) · React 19 + TS + Vite + MUI + TanStack Query ·
 Redis (cache + SignalR backplane) · RabbitMQ/MassTransit (Phase 2) · Azure Blob (Azurite locally) · Docker Compose.
 
 > This file is loaded into every session — keep it short. Details live in `ARCHITECTURE.md`;
@@ -43,7 +43,7 @@ dotnet test FixFlow.slnx
 dotnet test tests/FixFlow.Domain.Tests --filter "FullyQualifiedName~WorkOrder"   # prefer focused runs
 dotnet run --project src/FixFlow.API
 
-# Migrations
+# Migrations (dotnet-ef pinned in .config/dotnet-tools.json: `dotnet tool restore` once)
 dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API
 
 # Frontend (from web/)

@@ -1,5 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <UserSecretsId>0e969e6d-daea-4b47-b3d4-4b4f23a2d740</UserSecretsId>
+  </PropertyGroup>
+
+  <!-- dotnet build writes the OpenAPI document to openapi.json. It is committed: CI fails when it is stale, and the
+       frontend generates its client from it (T0.10). -->
+  <PropertyGroup>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- For the frontend build, not part of the published app -->
+    <Content Remove="openapi.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="all" />
+    <!-- dotnet ef uses the API as its startup project -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="NodaTime" />
+    <PackageReference Include="NodaTime.Serialization.SystemTextJson" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FixFlow.Application\FixFlow.Application.csproj" />
     <ProjectReference Include="..\FixFlow.Hosting\FixFlow.Hosting.csproj" />

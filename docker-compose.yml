@@ -1,10 +1,26 @@
 # Local infrastructure for FixFlow (ARCHITECTURE §20).
 #   cp .env.example .env   # then set every value
 #   docker compose up -d --wait
+# The `full` profile also builds and runs the API image (Dockerfile) at https://localhost:8443. Export the dev
+# certificate first (scripts/dev-cert.ps1 or scripts/dev-cert.sh), then:
+#   docker compose --profile full up -d --build --wait
 # Ports are published on 127.0.0.1 only. Credentials come only from .env (S21, S22).
 # Image tags are pinned exactly; Dependabot proposes updates (PostgreSQL majors are manual, ARCHITECTURE §20).
 
 name: fixflow
+
+# The API's configuration for the `full` profile's api and migrate services
+x-app-environment: &app-environment
+  # Production-like: no stack traces, no auto-migration; the migrate service applies migrations (plan P18)
+  ASPNETCORE_ENVIRONMENT: Production
+  # No GSS encryption: the image has no Kerberos library, and Npgsql would print raw load errors trying it
+  ConnectionStrings__FixFlow: Host=postgres;Port=5432;Database=${FIXFLOW_DB_NAME};Username=${FIXFLOW_DB_USER};GSS Encryption Mode=Disable
+  Database__Password: ${FIXFLOW_DB_PASSWORD}
+  # Azurite's well-known development account at its service name, so no account key is needed here
+  ConnectionStrings__Blob: UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
+  Seq__ServerUrl: http://seq
+  Seq__ApiKey: ${SEQ_API_KEY:-}
+  Otlp__Endpoint: http://seq/ingest/otlp
 
 services:
   postgres:
@@ -84,6 +100,63 @@ services:
       - seq-data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  # One-shot: applies EF Core migrations (the Dockerfile's migrate target), then exits
+  migrate:
+    profiles: [full]
+    build:
+      context: .
+      target: migrate
+    image: fixflow-migrate:local
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    profiles: [full]
+    build:
+      context: .
+      target: api
+    image: fixflow-api:local
+    environment:
+      <<: *app-environment
+      # HTTPS only, with the exported development certificate (plan P19)
+      ASPNETCORE_HTTP_PORTS: ""
+      ASPNETCORE_HTTPS_PORTS: "8443"
+      Kestrel__Certificates__Default__Path: /certs/fixflow-dev.pem
+      Kestrel__Certificates__Default__KeyPath: /certs/fixflow-dev.key
+      # The Azurite address browsers use in SAS URLs (T4.2). Loopback, so an https page may call it over http (P19).
+      Blob__PublicEndpoint: http://127.0.0.1:10000/devstoreaccount1
+    ports:
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - type: bind
+        source: ./certs
+        target: /certs
+        read_only: true
+        bind:
+          # Run scripts/dev-cert.ps1 or scripts/dev-cert.sh first. Without certs/, Docker Engine refuses to start the
+          # container; Docker Desktop creates an empty folder anyway, and the API exits on the missing certificate.
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      seq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # -k: the certificate names localhost, and this is the container's own loopback
+      test: ["CMD", "curl", "-fsSk", "-o", "/dev/null", "https://127.0.0.1:8443/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 20

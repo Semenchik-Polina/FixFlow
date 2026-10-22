@@ -1,0 +1,22 @@
+# Allow-list: the image build gets only what it needs, so .env, certs/ and anything else local can't reach a layer
+*
+!.config/dotnet-tools.json
+!.editorconfig
+!Directory.Build.props
+!Directory.Packages.props
+!global.json
+!nuget.config
+!src
+!web
+
+# Build output and local files inside the allowed folders
+**/bin
+**/obj
+**/*.local.json
+**/*.pem
+**/*.key
+**/*.pfx
+web/node_modules
+web/dist
+web/coverage
+web/.env*

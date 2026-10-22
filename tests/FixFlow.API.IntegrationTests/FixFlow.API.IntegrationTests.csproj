@@ -8,12 +8,27 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The containers use the image tags and the init script from Compose (Fixtures/TestInfrastructure.cs) -->
+  <ItemGroup>
+    <None Include="..\..\docker-compose.yml" Link="Compose\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\docker\postgres\initdb\*.sh" Link="Compose\initdb\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- A stand-in for the SPA the image copies into wwwroot (Hosting/SpaHostingTests.cs) -->
+  <ItemGroup>
+    <None Update="Hosting\TestWebRoot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NodaTime.Testing" />
+    <PackageReference Include="Testcontainers.Azurite" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="xunit.v3.mtp-off" />
   </ItemGroup>

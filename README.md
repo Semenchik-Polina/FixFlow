@@ -3,11 +3,13 @@
 A multi-tenant maintenance work-order platform: tenants submit requests → managers triage and assign →
 technicians complete the work → managers close it.
 
-> **Status:** early development (MVP, Phase 1). Only the local infrastructure runs so far — see the [MVP plan](docs/plans/mvp.md).
+> **Status:** early development (MVP, Phase 1). The local infrastructure, an API skeleton (logging, tracing,
+> health checks), a frontend skeleton and a production-like container setup run so far — see the
+> [MVP plan](docs/plans/mvp.md).
 
 ## Stack
 
-.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 18 + TypeScript + Vite + MUI + TanStack Query ·
+.NET 10 (Minimal APIs, EF Core, MediatR, NodaTime) · PostgreSQL · React 19 + TypeScript + Vite + MUI + TanStack Query ·
 Azure Blob Storage (Azurite locally) · Docker Compose. Details in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
@@ -54,11 +56,98 @@ Every port is bound to `127.0.0.1`. The database init script and Seq's first-run
 after changing them in `.env`, run `docker compose down -v`. If port 5432 is taken, stop the local PostgreSQL service.
 PostgreSQL upgrades are described in [ARCHITECTURE.md §20](ARCHITECTURE.md#20-local-development-and-deployment).
 
-Running the API and SPA is documented here as those pieces land (plan M0).
+### API
+
+Once, with the infrastructure running:
+
+1. In Seq, create an API key for the API: Settings → API Keys → Add API Key, with the **Ingest** permission only.
+2. Store the local secrets (kept in your user profile, outside the repository):
+
+   ```bash
+   dotnet user-secrets set "Database:Password" "<FIXFLOW_DB_PASSWORD from .env>" --project src/FixFlow.API
+   dotnet user-secrets set "Seq:ApiKey" "<Seq API key>" --project src/FixFlow.API
+   ```
+
+   If you changed `FIXFLOW_DB_NAME` or `FIXFLOW_DB_USER` in `.env`, also set `ConnectionStrings:FixFlow`
+   (`Host=127.0.0.1;Port=5432;Database=<name>;Username=<user>`, without the password).
+
+Then:
+
+```bash
+dotnet run --project src/FixFlow.API --launch-profile http   # http://localhost:5250
+```
+
+In Development the API applies pending EF Core migrations on startup. To add a migration, run `dotnet tool restore`
+once (it installs the pinned `dotnet-ef`), then the `dotnet ef migrations add` command from [CLAUDE.md](CLAUDE.md).
+
+| Endpoint | Purpose |
+|---|---|
+| `/health/live` | 200 while the process runs |
+| `/health/ready` | 200 when PostgreSQL and Blob Storage are reachable, otherwise 503 |
+
+Logs go to the console as JSON and to Seq; traces and metrics go to Seq over OTLP.
+
+### Frontend
+
+Needs Node.js 24 (`web/.nvmrc`). From `web/`:
+
+```bash
+npm ci            # once, and after dependency changes
+npm run dev       # http://localhost:5173
+```
+
+The dev server proxies `/api` to the API on http://localhost:5250, so the browser sees one origin and the auth cookie
+works without CORS. To point it elsewhere, set `FIXFLOW_API_URL`.
+
+The API client in `web/src/api/generated/` is generated from `src/FixFlow.API/openapi.json`, which `dotnet build`
+writes. After changing an endpoint or DTO, build the API, run `npm run gen:api` and commit both files. CI fails when
+either is stale.
+
+### Full profile (production-like)
+
+The `full` profile builds the API image, with the built SPA inside, and runs it next to the infrastructure: as
+Production, over HTTPS, at https://localhost:8443. The end-to-end tests run against it.
+
+Once, and again when the certificate expires (yearly), export the ASP.NET Core development certificate to the
+untracked `certs/` folder. The script also trusts it, so the browser accepts the address (Windows asks to confirm; on
+Linux trusting is best effort, and the browser may warn once).
+
+```bash
+./scripts/dev-cert.sh                                          # Linux, macOS
+powershell -ExecutionPolicy Bypass -File scripts/dev-cert.ps1  # Windows
+```
+
+Then:
+
+```bash
+docker compose --profile full up -d --build --wait   # also starts the infrastructure
+docker compose --profile full down
+```
+
+A one-shot `migrate` service applies the EF Core migrations before the API starts. The containers read their settings
+from `.env`, not user-secrets. To send their logs and traces to Seq, set `SEQ_API_KEY` in `.env` (a Seq API key
+with the Ingest permission).
+
+### Tests
+
+```bash
+dotnet test FixFlow.slnx
+```
+
+The integration tests need Docker running, but not the Compose stack, `.env` or user-secrets: Testcontainers starts
+its own PostgreSQL and Azurite once per run, on the image tags from `docker-compose.yml`, and removes them afterwards.
+
+Frontend, from `web/`:
+
+```bash
+npm run lint && npm run typecheck && npm test
+```
 
 ## Contributing
 
-- Conventional commits (`feat(work-orders): ...`), short-lived branches, squash merge.
+- Conventional commits (`feat(work-orders): ...`), short-lived branches off `dev`, squash merge (or a merge commit for
+  a bigger branch). `dev` merges into `main` at milestones with a merge commit
+  ([ADR 0006](docs/adr/0006-dev-integration-branch.md)).
 - No secrets and no real personal data anywhere in the repository — use fake data (`*.example.test`).
 
 ## License

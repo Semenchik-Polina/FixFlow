@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T0.6
+**Status:** approved 2026-10-09 · **Next task:** T1.1
 
 ## Context
 
@@ -26,6 +26,21 @@ decision in the tables below.
 | P3 | **Email confirmation (S4) is deferred to Phase 2.** Signup logs the user straight in. Accepting an invite marks the email as confirmed. Accepted risk while the app runs locally only. | ADR 0003 |
 | P4 | **MediatR is pinned to 12.x** (the last Apache-2.0 line). Dependabot ignores ≥ 13. | ADR 0004 |
 | P5 | **PostgreSQL 18** (pinned to `18.6-trixie`) instead of 16, for support until Nov 2030. Patch updates come through Dependabot; major upgrades are deliberate and follow a documented procedure. Decided 2026-10-11, before T0.3. | ARCHITECTURE §20 |
+| P6 | **Testcontainers reads its image tags from `docker-compose.yml`** (copied to the test output), so the tests can't drift from Compose and a Dependabot image bump runs the integration tests on its own PR. Decided 2026-10-13, in T0.7. | ARCHITECTURE §20 |
+| P7 | **`IEmailSender` + `EmailMessage` are defined in Application in T0.7**, without an implementation, so the test factory can swap in the in-memory sink. T1.4 adds the MailKit sender and templates behind the same interface. Decided 2026-10-13. | this plan (T0.7, T1.4) |
+| P8 | **Endpoint modules are registered in DI.** A module implements `IEndpointModule` (prefix + `Map(group)`) and is registered with `AddEndpointModule<T>()`; `MapFixFlowApi()` maps each one under `/api/v1` in its own group. Tests register test-only modules the same way, so they run through the real pipeline. Decided 2026-10-14, in T0.8. | `src/CLAUDE.md` §2 |
+| P9 | **The OpenAPI document is committed** as `src/FixFlow.API/openapi.json`, written by `dotnet build`. PR diffs show contract changes (the generated client's diffs are hidden), CI fails when it is stale, and `gen:api` (T0.10) reads it without building the backend. Decided 2026-10-14. | this plan (T0.8, T0.10) |
+| P10 | **The authentication scheme comes in T0.8; unknown routes need a session.** The fallback policy needs a challenge scheme, so T0.8 registers the Identity cookie schemes (`AddIdentityCookies`, 401/403 instead of redirects). T1.2 builds on them with `AddIdentityCore`, not `AddIdentity` (which would register them again). The fallback policy also covers unmatched routes: anonymous → 401, signed in → 404. Decided 2026-10-14. | this plan (T0.8, T1.2, T0.11) |
+| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. | this plan (T0.8, T0.9) |
+| P12 | **Domain event handlers: `IInTransactionEventHandler<TEvent>` and `IPostCommitEventHandler<TEvent>`** (Application), the names ADR 0005 left to T0.9. A small in-house `DomainEventDispatcher` calls them, not MediatR notifications: Domain can't reference MediatR, and MediatR's publisher stops at the first failing handler, while each post-commit handler must run and fail on its own. `AddDomainEventHandlers(assembly)` registers them. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §3 |
+| P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
+| P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
+| P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
+| P16 | **The OpenAPI document stays 3.1; the API reads numbers strictly.** A spike in T0.10 showed that orval 8 handles 3.1: nullables become `\| null` (nullable references too), enums become string unions, dates become strings, and its MSW 3 mocks compile and run. The spike also showed that the web JSON default (numbers may be sent as strings) makes every number `integer \| string` in the document and `number \| string` in the client, so the API sets `JsonNumberHandling.Strict`; a document test guards it. The generated files' header omits the orval version, so an orval update alone doesn't make the client stale. TypeScript stays on 6.0 until typescript-eslint supports 7 (Dependabot ignores TypeScript majors). Decided 2026-10-19, in T0.10. | this plan (T0.10) |
+| P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
+| P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
+| P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
+| P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
 
 ## Assumptions (approved with this plan)
 
@@ -134,7 +149,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   DoD:
   - `gitleaks detect` is clean, and the pre-commit hook blocks a planted fake key (removed afterwards).
   - The repo is public with the MIT licence detected, and GitHub accepts the Dependabot config.
-  - Merges are squash-only. Branch protection is added once CI exists (T0.5).
+  - Merges are squash-only (merge commits since allowed for `dev` → `main` and bigger feature branches: P17). Branch protection is added once CI exists (T0.5).
 
   Note: until their manifests exist, the Dependabot runs for github-actions (T0.5), docker-compose (T0.3),
   npm (T0.10) and docker (T0.11) fail with "not found". That is expected, not a config error.
@@ -170,7 +185,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Green on a PR. A compile warning, a failing test and a planted fake secret each fail the right job (checked once).
   - Branch protection requires the CI checks.
 
-- [ ] **T0.6 Observability & health** · M
+- [x] **T0.6 Observability & health** · M
   Scope, all in `FixFlow.Hosting`:
   - Serilog (JSON console + Seq) enriched with TraceId, OrganizationId and UserId.
   - A masking policy for sensitive properties (S26).
@@ -182,7 +197,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - A test logs an object with `Email`, `Token` and `Password` properties, and the output shows masked values.
   - `/health/ready` returns 503 with Postgres stopped and 200 when it's up; `/health/live` always returns 200.
 
-- [ ] **T0.7 Test infrastructure** · M
+- [x] **T0.7 Test infrastructure** · M
   Scope:
   - xUnit v3.
   - Postgres and Azurite Testcontainers on the same image tags as `docker-compose.yml`, shared per test run.
@@ -194,7 +209,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Tests are parallel-safe by construction (each test uses its own orgs and emails).
   - The backend suite runs in under 5 minutes locally.
 
-- [ ] **T0.8 API & application conventions** · M
+- [x] **T0.8 API & application conventions** · M
   Scope:
   - Problem Details: DomainException → 422, concurrency → 409, validation → 400 with field errors; no stack traces outside Development.
   - `Result<T>` → `TypedResults`.
@@ -209,13 +224,13 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Integration tests on test-only endpoints check the 404, 422, 409 and 400 Problem Details shapes. An anonymous call to an endpoint not on the allow-list → 401; pageSize 101 → 400.
   - `dotnet build` writes the OpenAPI document. NodaTime types appear as formatted strings, and enums as strings.
 
-- [ ] **T0.9 Persistence baseline** · M
+- [x] **T0.9 Persistence baseline** · M
   Scope:
   - `FixFlowDbContext`: Npgsql, `UseNodaTime()`, snake_case, one schema per module.
   - `IOrganizationOwned` interceptor: empty → set from `ICurrentUser`; mismatch or no org context → throw.
   - Org and soft-delete global filters, applied by convention.
   - Audit interceptor (`IClock` + current user).
-  - Opt-in `xmin` row version.
+  - Opt-in `xmin` row version; `SaveChanges` rethrows `DbUpdateConcurrencyException` as `ConcurrencyConflictException` (P11).
   - Two-phase domain event dispatch (A2).
   - `ToPageAsync`.
   - Auto-migration in Development only.
@@ -234,14 +249,14 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a failing post-commit handler doesn't roll back or fail the request
   - Auto-migration runs only when `ASPNETCORE_ENVIRONMENT=Development`.
 
-- [ ] **T0.10 Frontend skeleton** · M
+- [x] **T0.10 Frontend skeleton** · M
   Scope:
-  - Vite + React 18 + strict TypeScript.
-  - MUI theme with light/dark tokens.
+  - Vite + React 19 + strict TypeScript (P15).
+  - MUI theme, light only (dark theme is open question Q14, Phase 3).
   - React Router with lazy routes (`/login`, `/:orgSlug/*`); TanStack Query refetching on focus.
   - ESLint + Prettier; Vitest + RTL + MSW.
   - `api/http.ts`: sends cookies, turns Problem Details into `ApiError`, takes `X-Organization` from the URL slug only, redirects to `/login` on 401.
-  - orval + `gen:api` from the build-time OpenAPI document.
+  - orval + `gen:api` from the committed build-time OpenAPI document, `src/FixFlow.API/openapi.json` (P9).
   - `formatInstant` and a strings module.
   - Vite proxy for `/api`; a responsive app shell.
   - CI: a frontend job, `npm audit --audit-level=high`, and a check that the generated client is up to date.
@@ -255,7 +270,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - `formatInstant` formats in a given IANA zone across a DST change
   - CI fails when the committed client is out of date.
 
-- [ ] **T0.11 Containers & `full` profile** · M
+- [x] **T0.11 Containers & `full` profile** · M
   Scope:
   - Multi-stage Dockerfile: build the SPA → publish the API → copy the SPA into `wwwroot`; runs as non-root.
   - An SPA fallback that excludes `/api` and `/health`.
@@ -265,7 +280,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - CI: an image build job.
 
   DoD:
-  - `docker compose --profile full up -d --build --wait` serves the SPA over HTTPS. A deep link `/x/requests` returns index.html, and `/api/v1/nope` returns a 404 Problem Details.
+  - `docker compose --profile full up -d --build --wait` serves the SPA over HTTPS. A deep link `/x/requests` returns index.html, and `/api/v1/nope` returns a 401 Problem Details to an anonymous caller (P10).
   - The image runs as non-root with no secrets in its layers. Certs and `.env` are untracked. The image builds in CI.
 
 **M0 exit:** a fresh clone plus the README gets everything running; CI is green and required.
@@ -274,7 +289,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 - [ ] **T1.1 Organization & membership domain** · S
   Scope:
-  - `Organization`: name, slug rules + reserved list.
+  - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one, plus `api`, `health` and `hubs`, which the API keeps for itself (T0.11). Slugs, like every client route parameter, contain no dots: the SPA fallback treats a dotted last segment as a file name (T0.11).
   - `OrganizationMembership`: Active/Suspended, JoinedAt, at least one role.
   - `Role`: Tenant, Technician, Manager, Admin.
 
@@ -285,8 +300,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - ASP.NET Core Identity in Infrastructure: `User : IdentityUser<Guid>` with UUIDv7 ids and first/last name.
   - Schemas `identity` and `organizations`, with the §10 unique indexes.
   - Password policy (S3); lockout after 5 failed attempts.
-  - Cookie (S1) that returns 401/403 instead of redirecting.
+  - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
+  - Data Protection keys: the `full` profile's container keeps them in its own filesystem (a startup warning since
+    T0.11), so recreating it signs everyone out. Persist them, e.g. to a named volume; Phase 2's two replicas need a shared key ring.
   - Migration `AddIdentityAndOrganizations`.
 
   DoD:
@@ -318,10 +335,17 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T1.4 Password reset & profile** · M
   Scope:
   - `IEmailSender` (MailKit → Mailpit) with templates.
+  - The sender catches MailKit failures and rethrows an exception that implements `ILogSafeMessage`, with the original
+    as its inner exception. The message comes from the SMTP status and error code (`SmtpCommandException.StatusCode`,
+    `ErrorCode`) or names the kind of failure (connect, authentication, TLS), so logs show why a send failed (P20).
   - `POST /auth/forgot-password`, which always returns 202.
   - `POST /auth/reset-password`: 1 h, single use, token in the URL fragment.
   - Signed-in users can change their password and edit their name.
   - Rate-limit both auth endpoints.
+  - Settings are read lazily, so the build-time OpenAPI document needs none. That includes the health checks: they
+    take their connection strings through a `Func<IServiceProvider, string>`, like `AddFixFlowPersistence`, and the
+    `BuildTimeDocument.IsGenerating` checks around them in `Program.cs` go. Otherwise each new setting needs one
+    more check (review of `dev`, 2026-10-21).
 
   DoD:
   - Integration tests:
@@ -330,7 +354,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a reset ends the user's other sessions
     - changing the password requires the current one; a name edit shows up in `/me`
     - rate limit → 429
-  - With SMTP down, the call still returns 202 and the failure is logged without the address.
+  - With SMTP down, the call still returns 202 and the failure is logged with the SMTP status, without the address.
 
 - [ ] **T1.5 Organization context & `ICurrentUser`** · L
   Scope, per §8:
@@ -368,12 +392,21 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Routing after login: one org → `/{slug}`, several → a picker, none → create an org.
   - `/:orgSlug` layout: org switcher, user menu, nav based on role, route guards (UX only).
   - The org slug is part of query keys, or the cache resets when switching.
+    Either way, a response is never cached under another org's key. `web/src/api/http.ts` reads `X-Organization` from
+    `window.location` when the fetch starts, so a refetch of the old page's queries during a switch goes out with
+    the new slug. Take the slug from the org the query belongs to, or cancel the old org's queries before the URL
+    changes. Callers still can't set the header themselves (review of `dev`, 2026-10-21).
+  - The 401 handler in `http.ts` recognizes the login page through a helper in `shared/routing/paths.ts`, not with
+    `pathname !== globalPaths.login`. That exact match misses `/login/` and `/LOGIN`, which the router renders as
+    the login page, so a 401 there reloads the page and clears the form (review of `dev`, 2026-10-21).
   - An "organization not found" page.
 
   DoD:
   - Component tests:
     - validation, and server field errors shown through `setError`
     - switching orgs drops org-scoped cache
+    - a query of org A that refetches during a switch to B never goes out with B's slug, or its result is dropped
+    - a 401 on `/login/` or `/LOGIN` doesn't redirect
   - Manual checks: two tabs in different orgs work independently; login and signup can be used with the keyboard alone.
 
 - [ ] **T1.8 E2E harness** · M
@@ -381,7 +414,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Playwright in `tests/web-e2e/` (Chromium, against the `full` profile over HTTPS).
   - Mailpit API helper and fake-data helpers (`*.example.test`).
   - Flows: signup → org home → logout/login, and password reset through the Mailpit link.
-  - CI job: bring up compose `full` with `--wait` → run Playwright → upload the report and traces on failure.
+  - CI job: export the dev cert (`scripts/dev-cert.sh`, P19) → bring up compose `full` with `--wait` → run Playwright → upload the report and traces on failure.
 
   DoD:
   - Green locally and in CI. Each test signs up its own org, and the suite runs with 2 workers. 3 CI runs in a row pass.
@@ -398,7 +431,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Schema `properties`; migration `AddPropertiesAndUnits`.
 
   DoD:
-  - Domain tests: `Europe/Kyiv` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
+  - Domain tests: `Europe/Warsaw` is accepted; a Windows id and a fixed offset are rejected; required fields are enforced.
   - The model tests now cover real org-owned entities.
   - A DbContext test shows org A's data is invisible in org B's context, and soft-deleted rows are hidden.
 
@@ -518,7 +551,8 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - 5-minute write SAS for `{orgId}/{yyyy}/{mm}/{uuid}`
     - short read SAS
     - blob properties and range reads
-  - Private containers and Azurite CORS, created at dev startup.
+  - Private containers and Azurite CORS, created at dev startup. The `full` profile runs as Production (P18), so it needs them created too.
+  - Browser-facing SAS URLs use `Blob:PublicEndpoint` when it is set; the `full` profile sets it (P19).
   - `POST /uploads`.
   - `Attachment`: owner is a request or a WO (exactly one), kind General/Before/After, `ScanStatus` Pending.
   - Checks when attaching:
