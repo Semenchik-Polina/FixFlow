@@ -164,8 +164,9 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     }
 
     /// <summary>
-    /// Dispatches the events raised by tracked aggregates, then the events raised by those handlers, until none are
-    /// left. Returns them all for the post-commit phase.
+    /// Calls the in-transaction handlers of the events raised by tracked aggregates, then of the events those handlers
+    /// raise, until none are left. Returns every event: each one also goes to its post-commit handlers after the
+    /// commit. The phase belongs to the handler, not the event (ARCHITECTURE §12).
     /// </summary>
     private async Task<List<IDomainEvent>> DispatchInTransactionAsync(CancellationToken cancellationToken)
     {
