@@ -20,6 +20,9 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
 
         AssertString(properties.GetProperty("at"), "date-time", nullable: false);
         AssertString(properties.GetProperty("on"), "date", nullable: false);
+        AssertString(properties.GetProperty("opensAt"), "time-local", nullable: false);
+        AssertString(properties.GetProperty("visitAt"), "date-time-local", nullable: false);
+        AssertString(properties.GetProperty("timeZone"), format: null, nullable: false);
         AssertString(properties.GetProperty("notSet"), "date-time", nullable: true);
     }
 
@@ -83,10 +86,10 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
             : [type.GetString()];
     }
 
-    private static void AssertString(JsonElement schema, string format, bool nullable)
+    private static void AssertString(JsonElement schema, string? format, bool nullable)
     {
         Assert.False(schema.TryGetProperty("$ref", out _), "NodaTime types are inlined");
-        Assert.Equal(format, schema.GetProperty("format").GetString());
+        Assert.Equal(format, schema.TryGetProperty("format", out var actual) ? actual.GetString() : null);
         Assert.Equal(nullable ? ["null", "string"] : ["string"], TypesOf(schema).Order(StringComparer.Ordinal));
     }
 

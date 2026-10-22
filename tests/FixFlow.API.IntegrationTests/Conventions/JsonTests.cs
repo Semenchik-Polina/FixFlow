@@ -17,10 +17,10 @@ public class JsonTests(FixFlowApiFactory api)
             new Uri($"{ConventionTestEndpoints.Path}/samples/current", UriKind.Relative),
             TestContext.Current.CancellationToken);
 
-        // The shared clock: FixFlowApiFactory.SharedNow
+        // The shared clock: FixFlowApiFactory.SharedNow, 10:00 in Warsaw (UTC+1 in winter)
         AssertJsonEqual(
             """
-            {"name":"Current","at":"2026-01-14T09:00:00Z","on":"2026-01-14","notSet":null,"status":"InProgress","tags":["boiler"]}
+            {"name":"Current","at":"2026-01-14T09:00:00Z","on":"2026-01-14","opensAt":"10:00:00","visitAt":"2026-01-14T10:00:00","timeZone":"Europe/Warsaw","notSet":null,"status":"InProgress","tags":["boiler"]}
             """,
             json);
     }
@@ -30,7 +30,7 @@ public class JsonTests(FixFlowApiFactory api)
     {
         const string Sample =
             """
-            {"name":"Echo","at":"2026-03-29T00:59:59.5Z","on":"2026-03-29","notSet":"2026-03-29T01:00:00Z","status":"OnHold","tags":["a","b"]}
+            {"name":"Echo","at":"2026-03-29T00:59:59.5Z","on":"2026-03-29","opensAt":"08:30:00","visitAt":"2026-03-29T09:15:00","timeZone":"Europe/Warsaw","notSet":"2026-03-29T01:00:00Z","status":"OnHold","tags":["a","b"]}
             """;
         using var client = api.CreateApiClient();
         using var content = new StringContent(Sample, Encoding.UTF8, "application/json");
