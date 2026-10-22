@@ -182,6 +182,31 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         Assert.Equal(0, api.Persistence.PostCommit.Count(widget.Id));
     }
 
+    [Fact]
+    public async Task PostCommitHandlers_TransactionDisposedWithoutCommit_DoNotRunOnTheNextSave()
+    {
+        var rolledBack = new Widget("Rolled back");
+        var saved = new Widget("Saved");
+        await using var scope = api.Persistence.CreateScope(_user);
+
+        await using (var transaction = await scope.Db.Database.BeginTransactionAsync(_ct))
+        {
+            rolledBack.Publish(new WidgetNoticed(rolledBack.Id));
+            scope.Db.Widgets.Add(rolledBack);
+            await scope.Db.SaveChangesAsync(_ct);
+
+            // Disposed without commit or rollback, as on an early return
+        }
+
+        // A single insert: EF Core starts no transaction for it, so the interceptor sees nothing
+        saved.Publish(new WidgetNoticed(saved.Id));
+        scope.Db.Widgets.Add(saved);
+        await scope.Db.SaveChangesAsync(_ct);
+
+        Assert.Equal(0, api.Persistence.PostCommit.Count(rolledBack.Id));
+        Assert.Equal(1, api.Persistence.PostCommit.Count(saved.Id));
+    }
+
     /// <summary>All a sink can write: the message, every property and the exception.</summary>
     private static string Render(LogEvent logEvent) =>
         string.Join(

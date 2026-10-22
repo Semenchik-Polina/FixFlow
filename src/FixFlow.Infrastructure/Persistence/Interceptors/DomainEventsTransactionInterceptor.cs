@@ -6,7 +6,7 @@ namespace FixFlow.Infrastructure.Persistence.Interceptors;
 /// <summary>
 /// The post-commit phase of a command that saves several times in one explicit transaction (ADR 0005): the events of
 /// all its saves are dispatched once, after the commit. A rollback or a failed commit drops them, and so does a new
-/// transaction (one disposed without commit or rollback leaves no other trace).
+/// transaction or a save outside one (a transaction disposed without commit or rollback leaves no other trace).
 /// </summary>
 internal sealed class DomainEventsTransactionInterceptor : DbTransactionInterceptor
 {

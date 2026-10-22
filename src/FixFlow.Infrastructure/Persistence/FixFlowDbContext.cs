@@ -62,13 +62,18 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
             throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
         }
 
-        _pendingPostCommit.AddRange(domainEvents);
-        if (Database.CurrentTransaction is null)
+        if (Database.CurrentTransaction is not null)
         {
-            await DispatchPostCommitAsync();
+            // DomainEventsTransactionInterceptor dispatches them once the transaction commits
+            _pendingPostCommit.AddRange(domainEvents);
+            return written;
         }
 
-        // Otherwise DomainEventsTransactionInterceptor dispatches them once the transaction commits
+        // Events still pending were saved in an explicit transaction disposed without commit or rollback, so rolled
+        // back. The interceptor drops them when the next transaction starts, but a save may start none.
+        _pendingPostCommit.Clear();
+        _pendingPostCommit.AddRange(domainEvents);
+        await DispatchPostCommitAsync();
         return written;
     }
 
