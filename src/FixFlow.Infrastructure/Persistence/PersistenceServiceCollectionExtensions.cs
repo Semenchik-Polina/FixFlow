@@ -3,6 +3,7 @@ using FixFlow.Application.Persistence;
 using FixFlow.Infrastructure.Persistence.Events;
 using FixFlow.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FixFlow.Infrastructure.Persistence;
@@ -33,7 +34,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDbContext<TContext>((provider, options) => options
             .UseNpgsql(
                 resolvedConnectionString ??= connectionString(provider),
-                npgsql => npgsql.UseNodaTime())
+                npgsql => npgsql
+                    .UseNodaTime()
+                    .MigrationsHistoryTable(HistoryRepository.DefaultTableName, Schemas.Migrations))
             // Not the server's culture: names must be the same everywhere
             .UseSnakeCaseNamingConvention(CultureInfo.InvariantCulture)
             .AddInterceptors(

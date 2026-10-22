@@ -15,4 +15,7 @@ public static class Schemas
     public const string Requests = "requests";
 
     public const string WorkOrders = "workorders";
+
+    /// <summary>Not a module: EF Core's migrations history table.</summary>
+    public const string Migrations = "migrations";
 }
