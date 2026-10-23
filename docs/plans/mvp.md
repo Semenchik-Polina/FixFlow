@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T1.1
+**Status:** approved 2026-10-09 · **Next task:** T1.2
 
 ## Context
 
@@ -41,6 +41,7 @@ decision in the tables below.
 | P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
 | P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
 | P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
+| P21 | **Slugs: 3–40 characters, `a-z`, `0-9` and single hyphens, starting and ending with a letter or digit, taken as written (never lowercased).** Slugs never change (A10), so the reserved list looks ahead. Besides today's SPA global paths and the server paths (`api`, `health`, `hubs`, plus `assets`, the SPA bundle's folder), it holds the global pages later tasks will add: `signup`, `forgot-password`, `reset-password`, `invite`, `account`, `organizations`, `new`, and Phase 2's `confirm-email` (ADR 0003). T1.7 and T3.4 name their pages from this list. A domain test checks that `paths.ts` stays inside it. Uniqueness is the database's job: the unique index (T1.2) and a 422 field error at signup (T1.3). Decided 2026-10-23, in T1.1. | `OrganizationSlug` (T1.1) |
 
 ## Assumptions (approved with this plan)
 
@@ -287,7 +288,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 ## M1 — Accounts & organization context
 
-- [ ] **T1.1 Organization & membership domain** · S
+- [x] **T1.1 Organization & membership domain** · S
   Scope:
   - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one, plus `api`, `health` and `hubs`, which the API keeps for itself (T0.11). Slugs, like every client route parameter, contain no dots: the SPA fallback treats a dotted last segment as a file name (T0.11).
   - `OrganizationMembership`: Active/Suspended, JoinedAt, at least one role.
@@ -299,6 +300,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   Scope:
   - ASP.NET Core Identity in Infrastructure: `User : IdentityUser<Guid>` with UUIDv7 ids and first/last name.
   - Schemas `identity` and `organizations`, with the §10 unique indexes.
+  - `MembershipRole` is mapped as an owned collection of the membership (`OwnsMany`, key `(membership_id, role)`), so
+    it can only be read through the org-filtered membership. A model test makes isolation the default: every entity
+    type that isn't owned is `IOrganizationOwned` or on a short allow-list of global ones (`Organization`, Identity's
+    tables) (review of T1.1).
   - Password policy (S3); lockout after 5 failed attempts.
   - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
@@ -359,6 +364,9 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 - [ ] **T1.5 Organization context & `ICurrentUser`** · L
   Scope, per §8:
   - `OrganizationContextMiddleware`: slug → org → the caller's active membership, through `HybridCache` (60 s, tag `user:{userId}:memberships`).
+  - `OrganizationMembership` raises domain events when it is created, its roles change, or it is suspended or
+    reactivated. A post-commit handler invalidates `user:{userId}:memberships`, so no endpoint handler has to
+    remember to (review of T1.1).
   - Claims transformation and `ICurrentUser`.
   - Every endpoint needs an org unless it is marked org-less (`/auth/*`, `/me*`, `/organizations`, invite lookup/accept).
   - A trusted org scope for signup and invite acceptance (the org id is derived on the server, never taken from the body).

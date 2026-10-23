@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { orgSlugFromPath } from './paths';
+import { firstSegment, orgSlugFromPath } from './paths';
+
+describe('firstSegment', () => {
+  it.each([
+    ['/organizations/new', 'organizations'],
+    ['/login', 'login'],
+    ['/acme/', 'acme'],
+    ['/', ''],
+    ['', ''],
+  ])('reads %j as %j', (pathname, segment) => {
+    expect(firstSegment(pathname)).toBe(segment);
+  });
+});
 
 describe('orgSlugFromPath', () => {
   it.each([
