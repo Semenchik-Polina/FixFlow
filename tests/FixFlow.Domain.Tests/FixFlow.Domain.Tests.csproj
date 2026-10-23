@@ -8,6 +8,11 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The SPA's global paths, which the reserved organization slugs must cover (OrganizationSlugTests) -->
+  <ItemGroup>
+    <None Include="..\..\web\src\shared\routing\paths.ts" Link="Spa\paths.ts" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

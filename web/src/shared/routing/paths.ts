@@ -1,7 +1,8 @@
 /**
  * Top-level pages that live outside any organization. Every other first path segment is an organization slug
- * (`/{orgSlug}/...`, ARCHITECTURE §8). The router builds the global routes from this list, so the two can't drift;
- * the backend's reserved slugs (plan T1.1) must include each of these segments.
+ * (`/{orgSlug}/...`, ARCHITECTURE §8). The router builds the global routes from this list, so the two can't drift.
+ * The backend's reserved slugs (`OrganizationSlug.Reserved`) must include each of these segments, and a domain test
+ * checks it. Slugs never change, so a new page takes a name that list already reserves.
  */
 export const globalPaths = {
   login: '/login',
