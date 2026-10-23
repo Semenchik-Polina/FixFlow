@@ -39,6 +39,20 @@ public class OrganizationTests
     }
 
     [Theory]
+    [InlineData("Acme\0Homes")]
+    [InlineData("Acme\0")] // Trim doesn't remove NUL
+    [InlineData("Acme\nHomes")]
+    [InlineData("Acme\tHomes")]
+    public void Create_NameWithControlCharacter_Throws(string name)
+    {
+        var exception = Assert.Throws<DomainException>(() => Organization.Create(name, "acme"));
+        Assert.Equal("An organization's name can't contain line breaks or other control characters.", exception.Message);
+    }
+
+    [Fact]
+    public void Create_NameEndingInLineBreak_TrimsIt() => Assert.Equal("Acme", Organization.Create("Acme\n", "acme").Name);
+
+    [Theory]
     [InlineData("ab")]
     [InlineData("Acme")]
     [InlineData("login")]

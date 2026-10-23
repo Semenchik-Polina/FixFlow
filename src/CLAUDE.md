@@ -62,7 +62,8 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   domain event. Allowed transitions/roles: `ARCHITECTURE.md` §7.
 - Business rule violations throw `DomainException` (mapped to **422** Problem Details);
   concurrency conflicts map to **409**; not found / not authorized to see → **404**.
-- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`.
+- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`. An aggregate's owned child type
+  (`MembershipRole`) has no id of its own: its owner and its value are its key.
 - Domain events: past-tense `IDomainEvent` records (`WorkOrderAssigned`), raised with `Raise(...)` on the aggregate,
   dispatched in two phases during `SaveChangesAsync` (ADR 0005, plan P12):
   - **in-transaction** handlers (`IInTransactionEventHandler<TEvent>`) keep other aggregates consistent (WO Closed →

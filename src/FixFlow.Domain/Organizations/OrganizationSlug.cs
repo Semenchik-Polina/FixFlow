@@ -29,6 +29,8 @@ public static partial class OrganizationSlug
         "account",
         "organizations",
         "new",
+        // Phase 2's email confirmation page (ADR 0003)
+        "confirm-email",
         // Server paths the SPA fallback leaves alone (FixFlow.API ClientRouteConstraint), and the SPA bundle's folder
         "api",
         "health",

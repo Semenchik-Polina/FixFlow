@@ -73,7 +73,7 @@ public partial class OrganizationSlugTests
     {
         var paths = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Spa", "paths.ts"));
         var globalPaths = GlobalPathsObject().Match(paths);
-        Assert.True(globalPaths.Success, "paths.ts no longer declares `export const globalPaths = { ... }`");
+        Assert.True(globalPaths.Success, "paths.ts no longer declares `export const globalPaths = { ... } as const;`");
 
         var segments = FirstSegment().Matches(globalPaths.Groups["body"].Value)
             .Select(match => match.Groups["segment"].Value)
@@ -83,10 +83,12 @@ public partial class OrganizationSlugTests
         Assert.All(segments, segment => Assert.Contains(segment, OrganizationSlug.Reserved));
     }
 
-    [GeneratedRegex(@"export const globalPaths = \{(?<body>[^}]*)\}")]
+    // Up to the object's end, not the first }, which could close a ${...} in a template literal
+    [GeneratedRegex(@"export const globalPaths = \{(?<body>.*?)\} as const;", RegexOptions.Singleline)]
     private static partial Regex GlobalPathsObject();
 
-    // The first segment of each path literal ('/login', '/organizations/new')
-    [GeneratedRegex(@"'/(?<segment>[^'/]+)")]
+    // The first segment of each path literal, in any quotes ('/login', `/organizations/new`), as firstSegment in
+    // paths.ts reads it
+    [GeneratedRegex("""['"`]/(?<segment>[^'"`/]+)""")]
     private static partial Regex FirstSegment();
 }

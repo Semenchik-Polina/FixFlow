@@ -36,7 +36,7 @@ public sealed class Organization : AggregateRoot, IAuditable
 
     public Guid? UpdatedBy { get; private set; }
 
-    /// <param name="name">Trimmed; required, at most <see cref="NameMaxLength"/> characters.</param>
+    /// <param name="name">Trimmed; required, at most <see cref="NameMaxLength"/> characters, no control characters.</param>
     /// <param name="slug">Taken as written; see <see cref="OrganizationSlug.IsValid"/>.</param>
     /// <exception cref="DomainException">The name or the slug isn't valid.</exception>
     public static Organization Create(string name, string slug)
@@ -64,6 +64,12 @@ public sealed class Organization : AggregateRoot, IAuditable
         if (trimmed.Length > NameMaxLength)
         {
             throw new DomainException($"An organization's name can't be longer than {NameMaxLength} characters.");
+        }
+
+        // PostgreSQL can't store NUL, and the name goes into email subjects, where a line break doesn't belong
+        if (trimmed.Any(char.IsControl))
+        {
+            throw new DomainException("An organization's name can't contain line breaks or other control characters.");
         }
 
         return trimmed;
