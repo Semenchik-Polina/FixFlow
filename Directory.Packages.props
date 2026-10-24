@@ -41,6 +41,12 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.3" />
   </ItemGroup>
 
+  <!-- Same servicing release as EF Core: the EF stores pull EF Core Relational, which is pinned above -->
+  <ItemGroup Label="Identity">
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Identity.Stores" Version="10.0.12" />
+  </ItemGroup>
+
   <!-- The app's IClock (T0.8) and the tests' FakeClock must come from the same NodaTime -->
   <ItemGroup Label="Time">
     <PackageVersion Include="NodaTime" Version="3.3.5" />

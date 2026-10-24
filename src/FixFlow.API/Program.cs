@@ -45,6 +45,7 @@ try
     builder.Services.AddFixFlowJson();
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();
+    builder.Services.AddFixFlowDataProtection(builder.Configuration);
     builder.Services.AddFixFlowOpenApi();
     builder.Services.AddFixFlowSpa();
     // Endpoint modules: builder.Services.AddEndpointModule<...>() (from T1.3)

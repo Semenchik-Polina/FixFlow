@@ -2,21 +2,25 @@ using System.Linq.Expressions;
 using System.Reflection;
 using FixFlow.Application.Auth;
 using FixFlow.Application.Errors;
+using FixFlow.Application.Identity;
 using FixFlow.Application.Persistence;
 using FixFlow.Domain;
+using FixFlow.Domain.Organizations;
+using FixFlow.Infrastructure.Persistence.Configurations;
 using FixFlow.Infrastructure.Persistence.Events;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NodaTime;
 
 namespace FixFlow.Infrastructure.Persistence;
 
 /// <summary>
-/// The one DbContext (§10). Every entity gets the conventions in <see cref="OnModelCreating"/> from its marker
-/// interfaces, so configurations only map their own columns. Saving dispatches domain events in two phases
-/// (ADR 0005); the interceptors stamp the organization and the audit fields.
+/// The one DbContext (§10), and Identity's store: users, their claims, logins and tokens, without Identity's roles,
+/// because roles belong to memberships (D7). Every entity gets the conventions in <see cref="OnModelCreating"/> from
+/// its marker interfaces, so configurations only map their own columns. Saving dispatches domain events in two
+/// phases (ADR 0005); the interceptors stamp the organization and the audit fields.
 /// </summary>
-public class FixFlowDbContext : DbContext, IFixFlowDbContext
+public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbContext
 {
     /// <summary>In-transaction handlers may raise further events; more rounds than this means a cycle.</summary>
     private const int MaxInTransactionRounds = 10;
@@ -46,6 +50,10 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
         _currentUser = currentUser;
         _domainEvents = domainEvents;
     }
+
+    public DbSet<Organization> Organizations => Set<Organization>();
+
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
 
     /// <summary>Read by the organization filter on every query; EF Core turns it into a parameter.</summary>
     private Guid? CurrentOrganizationId => _currentUser.OrganizationId;
@@ -98,7 +106,10 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
+        // Identity's UserStore turns a conflict on a user into IdentityResult.ConcurrencyFailure, but it only
+        // recognizes EF Core's own exception
         catch (DbUpdateConcurrencyException exception)
+            when (exception.Entries.Count == 0 || exception.Entries.Any(entry => entry.Entity is not User))
         {
             throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
         }
@@ -126,52 +137,71 @@ public class FixFlowDbContext : DbContext, IFixFlowDbContext
     /// <summary>
     /// Derived contexts configure their own entities first, then call this, so the conventions cover them too.
     /// </summary>
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(InfrastructureAssembly.Instance);
+        // UserConfiguration runs first and renames the table to identity.users. The snake_case plugin names a foreign key 
+        // from its principal's table name at the moment the key is added, and doesn't follow a later rename. Without this order, 
+        // keys came out named fk_…_asp_net_users_….
+        base.OnModelCreating(builder);
+        builder.ApplyConfiguration(new UserConfiguration());
+        builder.ApplyConfigurationsFromAssembly(
+            InfrastructureAssembly.Instance, type => type != typeof(UserConfiguration));
 
         // Filters and keys belong to the root of a hierarchy; derived types inherit them. Shared-type entities (the
         // join tables of many-to-many relationships) are property bags with no marker interfaces, and
         // ModelBuilder.Entity(Type) can't reach them.
-        var roots = modelBuilder.Model
+        var roots = builder.Model
             .GetEntityTypes()
-            .Where(t => t.BaseType is null && !t.IsOwned() && !t.HasSharedClrType);
-        foreach (var entityType in roots)
+            .Where(t => t.BaseType is null && !t.IsOwned() && !t.HasSharedClrType)
+            .Select(t => t.ClrType)
+            .ToList();
+        foreach (var clrType in roots)
         {
-            ApplyConventions(modelBuilder.Entity(entityType.ClrType));
+            ApplyConventions(builder, clrType);
         }
     }
 
-    private void ApplyConventions(EntityTypeBuilder builder)
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
-        var clrType = builder.Metadata.ClrType;
+        // Enums by name (plan P23): readable in SQL and in partial indexes (§10), and reordering an enum's members
+        // can't change what the stored rows mean
+        configurationBuilder.Properties<Enum>().HaveConversion<string>();
+    }
 
+    /// <summary>
+    /// Each convention calls <see cref="ModelBuilder.Entity(Type)"/> only when it applies. That call configures a type
+    /// explicitly, and EF Core then keeps it even when nothing maps it any more, such as Identity's passkey data,
+    /// behind a passkey set that Identity's schema version 1 ignores.
+    /// </summary>
+    private void ApplyConventions(ModelBuilder builder, Type clrType)
+    {
         if (typeof(Entity).IsAssignableFrom(clrType))
         {
             // The domain assigns UUIDv7 ids. Value-generated keys would make EF treat a new child, added to a
             // tracked aggregate, as an existing row and UPDATE it.
-            builder.Property(nameof(Entity.Id)).ValueGeneratedNever();
+            builder.Entity(clrType).Property(nameof(Entity.Id)).ValueGeneratedNever();
         }
 
+        // its DomainEvents list isn't mapped to a column
         if (typeof(AggregateRoot).IsAssignableFrom(clrType))
         {
-            builder.Ignore(nameof(AggregateRoot.DomainEvents));
+            builder.Entity(clrType).Ignore(nameof(AggregateRoot.DomainEvents));
         }
 
         if (typeof(IOrganizationOwned).IsAssignableFrom(clrType))
         {
-            builder.HasQueryFilter(QueryFilters.Organization, OrganizationFilter(clrType));
+            builder.Entity(clrType).HasQueryFilter(QueryFilters.Organization, OrganizationFilter(clrType));
         }
 
         if (typeof(ISoftDeletable).IsAssignableFrom(clrType))
         {
-            builder.HasQueryFilter(QueryFilters.SoftDelete, SoftDeleteFilter(clrType));
+            builder.Entity(clrType).HasQueryFilter(QueryFilters.SoftDelete, SoftDeleteFilter(clrType));
         }
 
         if (typeof(IHasRowVersion).IsAssignableFrom(clrType))
         {
             // Npgsql maps a uint row version to the xmin system column
-            builder.Property(nameof(IHasRowVersion.RowVersion)).IsRowVersion();
+            builder.Entity(clrType).Property(nameof(IHasRowVersion.RowVersion)).IsRowVersion();
         }
     }
 

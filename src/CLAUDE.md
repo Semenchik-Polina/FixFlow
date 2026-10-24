@@ -81,6 +81,7 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 - Entity configuration in `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` (`IEntityTypeConfiguration<T>`).
   No data annotations on domain entities.
 - snake_case naming for tables/columns (`UseSnakeCaseNamingConvention()`).
+- Enums are stored as their names (`text`), by convention (plan P23).
 - Conventions come from marker interfaces (Domain); configurations don't repeat them:
   - `IOrganizationOwned`: `OrganizationId` set on insert from `ICurrentUser`, writes for another org throw, and the
     `QueryFilters.Organization` filter;
@@ -95,6 +96,7 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 
 - Name migrations by intent: `AddWorkOrderSlaDueAt`, not `Update3`.
 - After adding, review the SQL: `dotnet ef migrations script --idempotent` (only the new part).
+- A model change without a migration fails `Migrations_CoverTheModel`.
 - Never edit or delete a migration that is already merged; add a corrective one.
 - Don't read `*.Designer.cs` or `*ModelSnapshot.cs` — they're generated.
 
@@ -121,6 +123,9 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 ### Organization context (memberships)
 
 - `User` is global; access to an organization is an `OrganizationMembership` (Active/Suspended) with `MembershipRole`s.
+- `User` (Application) has no organization filter, so `IFixFlowDbContext` has no set of users: reach other users only
+  through queries scoped to the organization (its memberships), or the caller's own account (plan P22). A model test
+  keeps the interface to organization-owned sets plus `Organizations`.
 - `OrganizationContextMiddleware` (Api) reads `X-Organization: {slug}`, loads the user's **active** membership
   (via `HybridCache`, key `membership:{userId}:{slug}`), returns **404** if none, and an `IClaimsTransformation`
   adds `OrganizationId` + that membership's roles to the principal.

@@ -486,7 +486,7 @@ Conventions:
   - `work_orders (organization_id, assigned_technician_id, status)`
   - `work_orders (organization_id, request_id)` — MVP (1:1): unique, partial `WHERE status <> 'Cancelled'`; Phase 2 drops the uniqueness for 1:N
   - `maintenance_requests (organization_id, unit_id, created_at desc)`
-  - `users (normalized_email)` unique (Identity default)
+  - `users (normalized_email)` unique (set by FixFlow; Identity's own index isn't unique)
   - `organization_memberships (user_id, organization_id)` unique
   - `organizations (slug)` unique
 - **Seed data:** two demo organizations, properties, units, one user per role, and one technician who is a member of both (development only).

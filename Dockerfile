@@ -55,5 +55,8 @@ WORKDIR /app
 # Owned by root: the app can read its files but not change them
 COPY --from=build /out/api ./
 COPY --from=web /web/dist ./wwwroot/
+# The Data Protection keys' folder (DataProtection__KeysPath, plan P24). The app user owns it, and a new named volume
+# mounted here takes that owner.
+RUN mkdir /data-protection-keys && chown $APP_UID /data-protection-keys
 USER $APP_UID
 ENTRYPOINT ["dotnet", "FixFlow.API.dll"]
