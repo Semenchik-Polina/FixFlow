@@ -1,5 +1,6 @@
 using FixFlow.API.Endpoints;
 using FixFlow.API.IntegrationTests.Conventions;
+using FixFlow.API.IntegrationTests.Identity;
 using FixFlow.API.IntegrationTests.Persistence;
 using FixFlow.Application.Email;
 using FixFlow.Infrastructure.Persistence;
@@ -126,6 +127,7 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 services.AddMediatR(config => config.RegisterServicesFromAssemblyContaining<FixFlowApiFactory>());
                 services.AddValidatorsFromAssemblyContaining<FixFlowApiFactory>(includeInternalTypes: true);
                 services.AddEndpointModule<ConventionTestEndpoints>();
+                services.AddEndpointModule<IdentityTestEndpoints>();
             });
     }
 }

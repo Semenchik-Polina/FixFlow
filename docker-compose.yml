@@ -132,9 +132,13 @@ services:
       Kestrel__Certificates__Default__KeyPath: /certs/fixflow-dev.key
       # The Azurite address browsers use in SAS URLs (T4.2). Loopback, so an https page may call it over http (P19).
       Blob__PublicEndpoint: http://127.0.0.1:10000/devstoreaccount1
+      # The keys that protect the auth cookie, on a volume, so recreating the container signs no one out (plan P24)
+      DataProtection__KeysPath: /data-protection-keys
     ports:
       - "127.0.0.1:8443:8443"
     volumes:
+      # Phase 2's replicas on this host share it too
+      - api-data-protection:/data-protection-keys
       - type: bind
         source: ./certs
         target: /certs
@@ -167,3 +171,4 @@ volumes:
   azurite-data:
   mailpit-data:
   seq-data:
+  api-data-protection:

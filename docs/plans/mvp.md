@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T1.2
+**Status:** approved 2026-10-09 · **Next task:** T1.3
 
 ## Context
 
@@ -31,7 +31,7 @@ decision in the tables below.
 | P8 | **Endpoint modules are registered in DI.** A module implements `IEndpointModule` (prefix + `Map(group)`) and is registered with `AddEndpointModule<T>()`; `MapFixFlowApi()` maps each one under `/api/v1` in its own group. Tests register test-only modules the same way, so they run through the real pipeline. Decided 2026-10-14, in T0.8. | `src/CLAUDE.md` §2 |
 | P9 | **The OpenAPI document is committed** as `src/FixFlow.API/openapi.json`, written by `dotnet build`. PR diffs show contract changes (the generated client's diffs are hidden), CI fails when it is stale, and `gen:api` (T0.10) reads it without building the backend. Decided 2026-10-14. | this plan (T0.8, T0.10) |
 | P10 | **The authentication scheme comes in T0.8; unknown routes need a session.** The fallback policy needs a challenge scheme, so T0.8 registers the Identity cookie schemes (`AddIdentityCookies`, 401/403 instead of redirects). T1.2 builds on them with `AddIdentityCore`, not `AddIdentity` (which would register them again). The fallback policy also covers unmatched routes: anonymous → 401, signed in → 404. Decided 2026-10-14. | this plan (T0.8, T1.2, T0.11) |
-| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. | this plan (T0.8, T0.9) |
+| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. Users are the exception (T1.2): a conflict on users only passes through as EF Core's exception, the only one Identity's store turns into `IdentityResult` `ConcurrencyFailure`. | this plan (T0.8, T0.9) |
 | P12 | **Domain event handlers: `IInTransactionEventHandler<TEvent>` and `IPostCommitEventHandler<TEvent>`** (Application), the names ADR 0005 left to T0.9. A small in-house `DomainEventDispatcher` calls them, not MediatR notifications: Domain can't reference MediatR, and MediatR's publisher stops at the first failing handler, while each post-commit handler must run and fail on its own. `AddDomainEventHandlers(assembly)` registers them. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §3 |
 | P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
 | P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
@@ -42,6 +42,9 @@ decision in the tables below.
 | P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
 | P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
 | P21 | **Slugs: 3–40 characters, `a-z`, `0-9` and single hyphens, starting and ending with a letter or digit, taken as written (never lowercased).** Slugs never change (A10), so the reserved list looks ahead. Besides today's SPA global paths and the server paths (`api`, `health`, `hubs`, plus `assets`, the SPA bundle's folder), it holds the global pages later tasks will add: `signup`, `forgot-password`, `reset-password`, `invite`, `account`, `organizations`, `new`, and Phase 2's `confirm-email` (ADR 0003). T1.7 and T3.4 name their pages from this list. A domain test checks that `paths.ts` stays inside it. Uniqueness is the database's job: the unique index (T1.2) and a 422 field error at signup (T1.3). Decided 2026-10-23, in T1.1. | `OrganizationSlug` (T1.1) |
+| P22 | **`User` lives in Application, and its username is its id.** `User : IdentityUser<Guid>` comes from `Microsoft.Extensions.Identity.Stores` (no ASP.NET Core dependency), so handlers can project user columns and use `UserManager<User>`. Identity's store and options are in Infrastructure; `SignInManager` is in API. `IFixFlowDbContext` has no unfiltered set of users: users have no organization filter, so slices add queries scoped to the organization (through its memberships) or to the caller's own account. A model test keeps the interface to organization-owned sets plus `Organizations`. The username is the id, not the email: Identity puts it into the principal's name claim, where an email could reach the logs (S26). Sign-in finds the user by email. Decided 2026-10-23, in T1.2; the options considered are in `docs/plans/t1.2-identity-persistence.md`. | `src/CLAUDE.md` §5 |
+| P23 | **Enums are stored as their names** (`text`), by a convention in `FixFlowDbContext.ConfigureConventions`: readable in SQL and in partial indexes (§10), and reordering an enum's members can't change stored data. A model test checks every enum column. Decided 2026-10-23, in T1.2. | `src/CLAUDE.md` §4 |
+| P24 | **Data Protection keys live in a configured folder** (`DataProtection:KeysPath`). The `full` profile mounts the named volume `api-data-protection` there, so recreating the container signs no one out, and Phase 2's replicas on the same host share the keys. Unset (the API on the host, tests), the framework's default folder applies. `SetApplicationName("FixFlow")` ties every instance to one key ring. A named volume lives on one Docker host, so hosting on several machines needs a shared store (PostgreSQL through `PersistKeysToDbContext`, blob storage, or a network share), chosen with hosting at the end of Phase 2. The keys aren't encrypted at rest in the container, which is accepted while FixFlow runs locally only. Decided 2026-10-25, in T1.2. PostgreSQL was chosen first (2026-10-23), then dropped for the smaller change: it needed a package, a table and a second DbContext. | `AddFixFlowDataProtection` (T1.2) |
 
 ## Assumptions (approved with this plan)
 
@@ -296,9 +299,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
   DoD: domain tests cover slug validity (format, length, reserved words), role invariants, and suspend/reactivate.
 
-- [ ] **T1.2 Identity & account persistence** · M
+- [x] **T1.2 Identity & account persistence** · M
   Scope:
-  - ASP.NET Core Identity in Infrastructure: `User : IdentityUser<Guid>` with UUIDv7 ids and first/last name.
+  - ASP.NET Core Identity's store in Infrastructure, and `User : IdentityUser<Guid>` in Application (P22), with UUIDv7
+    ids and first/last name.
   - Schemas `identity` and `organizations`, with the §10 unique indexes.
   - `MembershipRole` is mapped as an owned collection of the membership (`OwnsMany`, key `(membership_id, role)`), so
     it can only be read through the org-filtered membership. A model test makes isolation the default: every entity
@@ -308,7 +312,8 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
   - Data Protection keys: the `full` profile's container keeps them in its own filesystem (a startup warning since
-    T0.11), so recreating it signs everyone out. Persist them, e.g. to a named volume; Phase 2's two replicas need a shared key ring.
+    T0.11), so recreating it signs everyone out. Persist them in a folder on a named volume (P24), which Phase 2's two
+    replicas on one host share.
   - Migration `AddIdentityAndOrganizations`.
 
   DoD:
@@ -325,6 +330,23 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - `GET /me`: profile + active memberships with roles.
   - `POST /organizations`: an existing user creates another org.
   - Rate-limit login (S6).
+  - Hand-offs from T1.2:
+    - Login: `FindByEmailAsync`, then `PasswordSignInAsync(user, …, lockoutOnFailure: true)`. The username is the id
+      (P22), and without `lockoutOnFailure` the T1.2 lockout does nothing. An unknown email answers like a wrong
+      password.
+    - Create accounts only with `UserManager.CreateAsync`, never by adding a `User` to the context: the manager sets
+      the normalized email (unique index, lookups), the security stamp and the lockout. After it returns
+      `ConcurrencyFailure`, the scope can't save again (a failed save ends the unit of work).
+    - `UserManager.CreateAsync` saves the whole context, so signup runs in one explicit transaction:
+      1. create the user
+      2. add the organization, then save
+      3. open the trusted organization scope
+      4. add the membership, then save
+      5. commit
+
+      The trusted scope is in T1.5's scope today: move it here, or pull it forward.
+    - A unique violation becomes a 422 field error by its constraint: `ix_users_normalized_email` → `email`,
+      `ix_organizations_slug` → `slug`.
 
   DoD:
   - Integration tests:

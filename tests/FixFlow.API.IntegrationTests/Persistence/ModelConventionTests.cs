@@ -2,10 +2,13 @@ using System.Text.RegularExpressions;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Persistence.TestModel;
 using FixFlow.Application.Auth;
+using FixFlow.Application.Identity;
 using FixFlow.Application.Persistence;
 using FixFlow.Domain;
+using FixFlow.Domain.Organizations;
 using FixFlow.Infrastructure.Persistence;
 using FixFlow.Infrastructure.Persistence.Events;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -32,7 +35,60 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         Assert.Contains(entityTypes, t => typeof(ISoftDeletable).IsAssignableFrom(t.ClrType));
         Assert.Contains(entityTypes, t => typeof(IHasRowVersion).IsAssignableFrom(t.ClrType));
         Assert.Contains(entityTypes, t => t.GetProperties().Any(p => p.ClrType == typeof(Instant)));
+        Assert.Contains(entityTypes, t => t.GetProperties().Any(p => p.ClrType.IsEnum));
         Assert.Contains(entityTypes, t => t.GetIndexes().Any());
+    }
+
+    /// <summary>
+    /// Isolation is the default (CLAUDE.md §3.1): an entity is organization-owned unless it is global by design and
+    /// listed here with its reason. An owned entity is read only through its owner, so the owner decides.
+    /// </summary>
+    [Fact]
+    public async Task Entities_AreOrganizationOwnedOrGlobal()
+    {
+        Type[] global =
+        [
+            // The boundary itself, found by slug before any organization context exists
+            typeof(Organization),
+            // A person's one account (D4); handlers reach other users through scoped queries only (plan P22)
+            typeof(User),
+            typeof(IdentityUserClaim<Guid>),
+            typeof(IdentityUserLogin<Guid>),
+            typeof(IdentityUserToken<Guid>),
+        ];
+
+        var violations = (await ModelAsync(nameof(FixFlowDbContext)))
+            .GetEntityTypes()
+            .Select(RootOwner)
+            .Where(t => !typeof(IOrganizationOwned).IsAssignableFrom(t.ClrType) && !global.Contains(t.ClrType))
+            .Select(t => t.DisplayName())
+            .Distinct();
+
+        Assert.Empty(violations);
+    }
+
+    /// <summary>
+    /// Handlers query what <see cref="IFixFlowDbContext"/> offers (plan P13), so it offers only organization-owned
+    /// sets and the global ones listed here (plan P22). A slice that adds a scoped query of users adds it here, with its
+    /// reason.
+    /// </summary>
+    [Fact]
+    public void DbContextInterface_ExposesOnlyScopedSets()
+    {
+        Type[] global = [typeof(Organization)];
+
+        var queried = typeof(IFixFlowDbContext)
+            .GetProperties()
+            .Select(p => p.PropertyType.GetInterfaces()
+                .Append(p.PropertyType)
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQueryable<>)))
+            .OfType<Type>()
+            .Select(queryable => queryable.GetGenericArguments()[0])
+            .ToList();
+
+        Assert.NotEmpty(queried);
+        Assert.DoesNotContain(
+            queried, t => !typeof(IOrganizationOwned).IsAssignableFrom(t) && !global.Contains(t));
     }
 
     [Theory]
@@ -85,6 +141,24 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         Assert.DoesNotContain(names, name => !SnakeCase().IsMatch(name));
     }
 
+    /// <summary>
+    /// The snake_case convention fixes a foreign key's name when the key is added, and doesn't follow a later rename of
+    /// the principal's table (an Identity table renamed by its configuration, say). The name must match both tables.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Models))]
+    public async Task ForeignKeyNames_NameTheirTables(string model)
+    {
+        var violations = (await ModelAsync(model))
+            .GetRelationalModel()
+            .Tables
+            .SelectMany(table => table.ForeignKeyConstraints)
+            .Where(fk => !fk.Name.StartsWith($"fk_{fk.Table.Name}_{fk.PrincipalTable.Name}_", StringComparison.Ordinal))
+            .Select(fk => fk.Name);
+
+        Assert.Empty(violations);
+    }
+
     [Theory]
     [MemberData(nameof(Models))]
     public async Task Tables_AreInModuleSchemas(string model)
@@ -107,6 +181,20 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
             .SelectMany(t => t.GetProperties())
             .Where(p => p.ClrType == typeof(Instant) || p.ClrType == typeof(Instant?))
             .Where(p => p.GetRelationalTypeMapping().StoreType != "timestamp with time zone")
+            .Select(p => $"{p.DeclaringType.DisplayName()}.{p.Name}");
+
+        Assert.Empty(violations);
+    }
+
+    [Theory]
+    [MemberData(nameof(Models))]
+    public async Task Enums_MapToText(string model)
+    {
+        var violations = (await ModelAsync(model))
+            .GetEntityTypes()
+            .SelectMany(t => t.GetProperties())
+            .Where(p => (Nullable.GetUnderlyingType(p.ClrType) ?? p.ClrType).IsEnum)
+            .Where(p => p.GetRelationalTypeMapping().StoreType != "text")
             .Select(p => $"{p.DeclaringType.DisplayName()}.{p.Name}");
 
         Assert.Empty(violations);
@@ -143,6 +231,15 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task UserIds_AreNotGeneratedByTheDatabase()
+    {
+        // Not an Entity, so the convention above doesn't reach it: its configuration does
+        var user = (await ModelAsync(nameof(FixFlowDbContext))).FindEntityType(typeof(User))!;
+
+        Assert.Equal(ValueGenerated.Never, Assert.Single(user.FindPrimaryKey()!.Properties).ValueGenerated);
+    }
+
+    [Fact]
     public async Task Conventions_ManyToManyWithoutJoinClass_ModelBuilds()
     {
         await using var services = new ServiceCollection()
@@ -172,6 +269,9 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         return appScope.ServiceProvider.GetRequiredService<FixFlowDbContext>().GetService<IDesignTimeModel>().Model;
     }
 
+    private static IReadOnlyEntityType RootOwner(IReadOnlyEntityType entityType) =>
+        entityType.FindOwnership() is { } ownership ? RootOwner(ownership.PrincipalEntityType) : entityType;
+
     [GeneratedRegex("^[a-z][a-z0-9_]*$")]
     private static partial Regex SnakeCase();
 
@@ -180,11 +280,11 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         DbContextOptions<ManyToManyDbContext> options, ICurrentUser currentUser, DomainEventDispatcher domainEvents)
         : FixFlowDbContext(options, currentUser, domainEvents)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder builder)
         {
-            modelBuilder.Entity<Part>().HasMany(part => part.Widgets).WithMany();
+            builder.Entity<Part>().HasMany(part => part.Widgets).WithMany();
 
-            base.OnModelCreating(modelBuilder);
+            base.OnModelCreating(builder);
         }
     }
 
