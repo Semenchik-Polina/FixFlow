@@ -7,4 +7,7 @@ namespace FixFlow.Application.Identity;
 public static class PasswordPolicy
 {
     public const int MinLength = 10;
+
+    /// <summary>Room for a long passphrase, but a bound on what every sign-in hashes.</summary>
+    public const int MaxLength = 128;
 }

@@ -48,7 +48,9 @@ try
     builder.Services.AddFixFlowDataProtection(builder.Configuration);
     builder.Services.AddFixFlowOpenApi();
     builder.Services.AddFixFlowSpa();
-    // Endpoint modules: builder.Services.AddEndpointModule<...>() (from T1.3)
+    builder.Services.AddEndpointModule<AuthEndpoints>();
+    builder.Services.AddEndpointModule<MeEndpoints>();
+    builder.Services.AddEndpointModule<OrganizationEndpoints>();
 
     var app = builder.Build();
 

@@ -27,6 +27,9 @@ public sealed class User : IdentityUser<Guid>, IAuditable
 {
     public const int NameMaxLength = 100;
 
+    /// <summary>Identity's email column; the configuration maps it with this.</summary>
+    public const int EmailMaxLength = 256;
+
     /// <param name="email">The sign-in email, unique across all users. The caller has validated it.</param>
     /// <param name="firstName">Trimmed; the caller has validated it.</param>
     /// <param name="lastName">Trimmed; the caller has validated it.</param>
