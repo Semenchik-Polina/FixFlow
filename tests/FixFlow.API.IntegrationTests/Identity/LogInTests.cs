@@ -63,6 +63,30 @@ public class LogInTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task LogIn_ParallelWrongPasswords_LocksOut()
+    {
+        // Each attempt would otherwise check the count it loaded, and the ones that lose the race to save it don't count
+        var account = await SignUpElsewhereAsync();
+        using var client = api.CreateApiClient();
+
+        var failed = await Task.WhenAll(Enumerable
+            .Range(0, FixFlowIdentityExtensions.MaxFailedSignIns)
+            .Select(_ => client.LogInAsync(account.Email, WrongPassword)));
+        foreach (var response in failed)
+        {
+            using (response)
+            {
+                Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+            }
+        }
+
+        using var rightPassword = await client.LogInAsync(account.Email, account.Password);
+
+        await rightPassword.ReadProblemAsync(HttpStatusCode.UnprocessableEntity);
+        Assert.Null(AuthCookie.Find(rightPassword));
+    }
+
+    [Fact]
     public async Task LogIn_UnknownEmail_AnswersLikeWrongPassword()
     {
         var account = await SignUpElsewhereAsync();
