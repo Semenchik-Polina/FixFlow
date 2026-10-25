@@ -1,3 +1,4 @@
+using FixFlow.API.RateLimiting;
 using FixFlow.Application.Identity.LogIn;
 using FixFlow.Application.Identity.LogOut;
 using FixFlow.Application.Identity.SignUp;
@@ -15,21 +16,25 @@ internal sealed class AuthEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
-        // S7's anonymous allow-list is signup and login only
+        // S7's anonymous allow-list is signup and login only, and both are rate-limited (S6, plan P28)
         group.MapPost("/signup", async (SignUpCommand command, ISender sender, CancellationToken ct) =>
                 (await sender.Send(command, ct)).ToCreated())
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Auth)
             .WithName("SignUp")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         // A failure is a 422, never a 401, so the SPA's 401 → /login redirect leaves a login form alone
         group.MapPost("/login", async (LogInCommand command, ISender sender, CancellationToken ct) =>
                 (await sender.Send(command, ct)).ToNoContent())
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Auth)
             .WithName("LogIn")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         // Needs a session: a cross-site POST carries no SameSite=Lax cookie, so it can't sign anyone out
         group.MapPost("/logout", async (ISender sender, CancellationToken ct) =>

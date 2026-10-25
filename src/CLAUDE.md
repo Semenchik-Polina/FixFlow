@@ -41,15 +41,22 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 
 - A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
   `MapFixFlowApi()` maps it under `/api/v1` in its own group.
-- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToNoContent()` (`ResultExtensions`), which map
-  the handler's `Result` to `TypedResults`. No business logic in endpoints.
+- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToCreated()` (201, no `Location` until the
+  resource has a GET) / `.ToNoContent()` (`ResultExtensions`), which map the handler's `Result` to `TypedResults`.
+  No business logic in endpoints.
 - Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
   `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
   validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.
+- A unique violation is thrown as `UniqueConstraintViolationException` (plan P27). A handler catches it only for its
+  own constraints (`UniqueIndexes`) and returns `Result.FieldError`; any other constraint stays a 500.
 - List queries implement `IPagedQuery`, return `PagedResult<T>`, and their validator derives from
   `PagedQueryValidator<T>` (pageSize ≤ 100).
 - Every endpoint declares `.RequireAuthorization(<policy>)`; anonymous ones use `.AllowAnonymous()` explicitly.
-- Every endpoint declares its responses (`Produces<T>()`, `ProducesProblem(...)`) so the OpenAPI client is accurate.
+  Endpoints that take credentials or create accounts also take `.RequireRateLimiting(RateLimitPolicies.Auth)` (plan P28).
+- Every endpoint declares its responses so the OpenAPI client is accurate: typed results describe the success, and
+  `ProducesValidationProblem()` / `ProducesProblem(...)` the errors (429 too, when rate-limited).
+- Every endpoint names its operation with `.WithName("GetMe")`, so orval generates `useGetMe`, not a name built
+  from the path.
 
 ---
 
@@ -125,13 +132,22 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 - `User` is global; access to an organization is an `OrganizationMembership` (Active/Suspended) with `MembershipRole`s.
 - `User` (Application) has no organization filter, so `IFixFlowDbContext` has no set of users: reach other users only
   through queries scoped to the organization (its memberships), or the caller's own account (plan P22). A model test
-  keeps the interface to organization-owned sets plus `Organizations`.
+  keeps the interface to organization-owned sets plus `Organizations`, and the two scoped reads on its allow-list:
+  - `OwnAccount`: the caller's user row;
+  - `OwnMemberships`: the caller's memberships in every organization, the one query that turns off the organization
+    filter, because they decide which organizations the caller may enter (`/me`, T1.5's resolution).
+- A handler that writes organization-owned rows before any organization context exists (signup, `POST /organizations`,
+  T3.2's invite acceptance) opens `ITrustedOrganizationScope.Open(organizationId)` (plan P25). Only for an id the
+  server derived (the organization it just created, an invite's), never one from the request. Keep it open through the
+  commit, so post-commit handlers run in it. `ArchitectureTests` allow-lists the types that may take it; never resolve
+  it from `IServiceProvider`, which that test can't see.
 - `OrganizationContextMiddleware` (Api) reads `X-Organization: {slug}`, loads the user's **active** membership
   (via `HybridCache`, key `membership:{userId}:{slug}`), returns **404** if none, and an `IClaimsTransformation`
   adds `OrganizationId` + that membership's roles to the principal.
 - Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`.
   Never read them from `User` entities, request bodies or route values.
-- Organization-less endpoints (`/api/v1/me*`, auth) are explicitly marked and must not touch organization-owned data.
+- Organization-less endpoints (`/api/v1/me*`, auth, `POST /api/v1/organizations`) are explicitly marked and must not
+  touch organization-owned data, except through a trusted scope.
 - Any change to memberships/roles must invalidate the tag `user:{userId}:memberships`.
 - SignalR hub validates `?org={slug}` the same way on connect.
 
@@ -171,7 +187,10 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
 - Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
   constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
-  cookies, no redirects); `.WithOrganization(slug)` sets `X-Organization`.
+  cookies, no redirects) from its own client address (a /64 of `2001:db8::/32`), so rate limits never span tests;
+  `.WithOrganization(slug)` sets `X-Organization`.
+- Accounts: `client.SignUpAsync()` signs up a new account with its first organization and stays signed in;
+  `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
 - Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
   resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
 - The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.

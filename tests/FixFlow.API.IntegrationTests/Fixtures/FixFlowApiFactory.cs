@@ -122,6 +122,8 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(Emails);
                 services.AddSingleton<ILogEventSink>(Logs);
+                // Each client's own address (CreateApiClient), so parallel tests never share a rate limit budget
+                services.AddSingleton<IStartupFilter, ClientAddressStartupFilter>();
 
                 // Test-only endpoints with their handlers and validators, behind the app's own pipeline behaviours
                 services.AddMediatR(config => config.RegisterServicesFromAssemblyContaining<FixFlowApiFactory>());

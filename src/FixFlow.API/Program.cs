@@ -4,6 +4,7 @@ using FixFlow.API.Endpoints;
 using FixFlow.API.Errors;
 using FixFlow.API.Json;
 using FixFlow.API.OpenApi;
+using FixFlow.API.RateLimiting;
 using FixFlow.API.Spa;
 using FixFlow.Application;
 using FixFlow.Hosting.Health;
@@ -46,6 +47,7 @@ try
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();
     builder.Services.AddFixFlowDataProtection(builder.Configuration);
+    builder.Services.AddFixFlowRateLimiting();
     builder.Services.AddFixFlowOpenApi();
     builder.Services.AddFixFlowSpa();
     builder.Services.AddEndpointModule<AuthEndpoints>();
@@ -58,6 +60,8 @@ try
     app.UseFixFlowRequestLogging();
     app.UseFixFlowErrorHandling();
     app.UseFixFlowSpaStaticFiles();
+    // A rejected request needs no user. WebApplication adds routing first, so the endpoint's policy is known here.
+    app.UseRateLimiter();
     app.UseAuthentication();
     // T1.5: the organization context middleware goes here
     // Needs the user's claims: keep it after authentication and the organization context middleware
