@@ -32,7 +32,9 @@ public interface IFixFlowDbContext
     /// <summary>
     /// The caller's own memberships in every organization, active or not, each with its roles; none for an anonymous
     /// caller. The one query without the organization filter: a user's memberships decide which organizations they
-    /// may enter, so they are read before any organization context exists (<c>/me</c>, T1.5).
+    /// may enter, so they are read before any organization context exists (<c>/me</c>, T1.5). EF Core turns the
+    /// filter off for the whole query, so join it to <see cref="Organizations"/> and its own roles only: any
+    /// organization-owned set joined in would be read across every organization.
     /// </summary>
     IQueryable<OrganizationMembership> OwnMemberships { get; }
 

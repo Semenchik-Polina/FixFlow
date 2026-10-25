@@ -135,7 +135,8 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   keeps the interface to organization-owned sets plus `Organizations`, and the two scoped reads on its allow-list:
   - `OwnAccount`: the caller's user row;
   - `OwnMemberships`: the caller's memberships in every organization, the one query that turns off the organization
-    filter, because they decide which organizations the caller may enter (`/me`, T1.5's resolution).
+    filter, because they decide which organizations the caller may enter (`/me`, T1.5's resolution). The filter is
+    off for the whole query: join it to `Organizations` only, never to an organization-owned set.
 - A handler that writes organization-owned rows before any organization context exists (signup, `POST /organizations`,
   T3.2's invite acceptance) opens `ITrustedOrganizationScope.Open(organizationId)` (plan P25). Only for an id the
   server derived (the organization it just created, an invite's), never one from the request. Keep it open through the
