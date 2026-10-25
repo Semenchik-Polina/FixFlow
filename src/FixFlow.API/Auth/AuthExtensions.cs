@@ -1,4 +1,5 @@
 using FixFlow.Application.Auth;
+using FixFlow.Application.Identity;
 using FixFlow.Hosting.Logging;
 using FixFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +24,7 @@ public static class AuthExtensions
         // The sign-in manager also registers the security stamp validator, which the application cookie calls on every
         // request that carries one
         services.AddFixFlowIdentity().AddSignInManager();
+        services.AddScoped<IAuthSession, SignInManagerAuthSession>();
 
         services.ConfigureApplicationCookie(options =>
         {
@@ -49,6 +51,9 @@ public static class AuthExtensions
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         services.AddHttpContextAccessor();
+        // One scope object per request, shared by the handler that opens it and the current user that reads it
+        services.AddScoped<TrustedOrganizationScope>();
+        services.AddScoped<ITrustedOrganizationScope>(provider => provider.GetRequiredService<TrustedOrganizationScope>());
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         // The organization's id joins the request's logs and trace as soon as T1.5 adds the claim
         services.Configure<RequestLogContextOptions>(

@@ -86,8 +86,7 @@ public class UserAccountTests(FixFlowApiFactory api)
         }
 
         var last = await signIn.CheckPasswordSignInAsync(saved, WrongPassword, lockoutOnFailure: true);
-        var rightPassword = await signIn.CheckPasswordSignInAsync(
-            saved, IdentityTestEndpoints.Password, lockoutOnFailure: true);
+        var rightPassword = await signIn.CheckPasswordSignInAsync(saved, TestData.Password, lockoutOnFailure: true);
 
         Assert.True(last.IsLockedOut);
         Assert.True(rightPassword.IsLockedOut);
@@ -117,7 +116,7 @@ public class UserAccountTests(FixFlowApiFactory api)
 
     private static User NewUser(string? email = null) => new(email ?? TestData.Email(), "Test", "User");
 
-    private async Task<IdentityResult> CreateAsync(User user, string password = IdentityTestEndpoints.Password)
+    private async Task<IdentityResult> CreateAsync(User user, string password = TestData.Password)
     {
         await using var scope = api.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<UserManager<User>>().CreateAsync(user, password);

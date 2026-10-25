@@ -69,26 +69,36 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
 
     /// <summary>
     /// Handlers query what <see cref="IFixFlowDbContext"/> offers (plan P13), so it offers only organization-owned
-    /// sets and the global ones listed here (plan P22). A slice that adds a scoped query of users adds it here, with its
-    /// reason.
+    /// sets, the global ones listed here, and the scoped queries listed here (plan P22). A query that isn't a set can
+    /// scope itself any way it likes, even turn the organization filter off, so its element type proves nothing: each
+    /// one is listed by name, with its reason. A method returning a query would get past that list, so there are none.
     /// </summary>
     [Fact]
     public void DbContextInterface_ExposesOnlyScopedSets()
     {
-        Type[] global = [typeof(Organization)];
+        Type[] globalSets = [typeof(Organization)];
+        string[] scopedQueries =
+        [
+            // The caller's own row
+            nameof(IFixFlowDbContext.OwnAccount),
+            // The caller's own memberships in every organization, read before any organization context exists
+            nameof(IFixFlowDbContext.OwnMemberships),
+        ];
 
-        var queried = typeof(IFixFlowDbContext)
+        var queryables = typeof(IFixFlowDbContext)
             .GetProperties()
-            .Select(p => p.PropertyType.GetInterfaces()
-                .Append(p.PropertyType)
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQueryable<>)))
-            .OfType<Type>()
-            .Select(queryable => queryable.GetGenericArguments()[0])
+            .Where(p => QueryableElementType(p.PropertyType) is not null)
             .ToList();
+        var sets = queryables.Where(p => IsDbSet(p.PropertyType)).ToList();
+        var setElementTypes = sets.Select(p => QueryableElementType(p.PropertyType)!).ToList();
 
-        Assert.NotEmpty(queried);
+        Assert.NotEmpty(sets);
         Assert.DoesNotContain(
-            queried, t => !typeof(IOrganizationOwned).IsAssignableFrom(t) && !global.Contains(t));
+            setElementTypes, t => !typeof(IOrganizationOwned).IsAssignableFrom(t) && !globalSets.Contains(t));
+        Assert.DoesNotContain(queryables.Except(sets), p => !scopedQueries.Contains(p.Name));
+        Assert.DoesNotContain(
+            typeof(IFixFlowDbContext).GetMethods(),
+            m => !m.IsSpecialName && QueryableElementType(m.ReturnType) is not null);
     }
 
     [Theory]
@@ -271,6 +281,15 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
 
     private static IReadOnlyEntityType RootOwner(IReadOnlyEntityType entityType) =>
         entityType.FindOwnership() is { } ownership ? RootOwner(ownership.PrincipalEntityType) : entityType;
+
+    /// <summary>The <c>T</c> of a type that is or implements <see cref="IQueryable{T}"/>; null for any other type.</summary>
+    private static Type? QueryableElementType(Type type) => type
+        .GetInterfaces()
+        .Append(type)
+        .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQueryable<>))
+        ?.GetGenericArguments()[0];
+
+    private static bool IsDbSet(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DbSet<>);
 
     [GeneratedRegex("^[a-z][a-z0-9_]*$")]
     private static partial Regex SnakeCase();

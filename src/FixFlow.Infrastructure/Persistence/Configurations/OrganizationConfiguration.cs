@@ -1,3 +1,4 @@
+using FixFlow.Application.Persistence;
 using FixFlow.Domain.Organizations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -13,8 +14,8 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         builder.Property(o => o.Name).HasMaxLength(Organization.NameMaxLength);
         builder.Property(o => o.Slug).HasMaxLength(OrganizationSlug.MaxLength);
 
-        // Unique across all organizations (§10). The aggregate can't check that; signup turns a violation into a field
-        // error (T1.3).
-        builder.HasIndex(o => o.Slug).IsUnique();
+        // Unique across all organizations (§10). The aggregate can't check that; creating an organization turns a
+        // violation into a field error (T1.3).
+        builder.HasIndex(o => o.Slug).IsUnique().HasDatabaseName(UniqueIndexes.OrganizationSlug);
     }
 }

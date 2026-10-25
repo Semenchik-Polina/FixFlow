@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T1.3
+**Status:** approved 2026-10-09 · **Next task:** T1.4
 
 ## Context
 
@@ -45,6 +45,10 @@ decision in the tables below.
 | P22 | **`User` lives in Application, and its username is its id.** `User : IdentityUser<Guid>` comes from `Microsoft.Extensions.Identity.Stores` (no ASP.NET Core dependency), so handlers can project user columns and use `UserManager<User>`. Identity's store and options are in Infrastructure; `SignInManager` is in API. `IFixFlowDbContext` has no unfiltered set of users: users have no organization filter, so slices add queries scoped to the organization (through its memberships) or to the caller's own account. A model test keeps the interface to organization-owned sets plus `Organizations`. The username is the id, not the email: Identity puts it into the principal's name claim, where an email could reach the logs (S26). Sign-in finds the user by email. Decided 2026-10-23, in T1.2; the options considered are in `docs/plans/t1.2-identity-persistence.md`. | `src/CLAUDE.md` §5 |
 | P23 | **Enums are stored as their names** (`text`), by a convention in `FixFlowDbContext.ConfigureConventions`: readable in SQL and in partial indexes (§10), and reordering an enum's members can't change stored data. A model test checks every enum column. Decided 2026-10-23, in T1.2. | `src/CLAUDE.md` §4 |
 | P24 | **Data Protection keys live in a configured folder** (`DataProtection:KeysPath`). The `full` profile mounts the named volume `api-data-protection` there, so recreating the container signs no one out, and Phase 2's replicas on the same host share the keys. Unset (the API on the host, tests), the framework's default folder applies. `SetApplicationName("FixFlow")` ties every instance to one key ring. A named volume lives on one Docker host, so hosting on several machines needs a shared store (PostgreSQL through `PersistKeysToDbContext`, blob storage, or a network share), chosen with hosting at the end of Phase 2. The keys aren't encrypted at rest in the container, which is accepted while FixFlow runs locally only. Decided 2026-10-25, in T1.2. PostgreSQL was chosen first (2026-10-23), then dropped for the smaller change: it needed a package, a table and a second DbContext. | `AddFixFlowDataProtection` (T1.2) |
+| P25 | **A trusted organization scope gives a request an organization context that the server derived.** `ITrustedOrganizationScope.Open(organizationId)` (Application) returns an `IDisposable`. While it is open, `ICurrentUser.OrganizationId` returns that id, so the ownership interceptor, the query filters and the audit stamps work unchanged. It takes only an id the server derived itself (the organization it just created, an invite's organization), never one from the request, and only when the caller has no organization context: `Open` throws otherwise. The scope stays open through the commit, so post-commit handlers run in it too. `TrustedOrganizationScope` (API) is a class of its own that `HttpCurrentUser` reads, so casting `ICurrentUser` can't open one, and an architecture test allow-lists the types that take it (signup and `POST /organizations`; T3.2 adds invite acceptance). Moved here from T1.5. Decided 2026-10-25, in T1.3; the options considered are in `docs/plans/t1.3-signup-login.md`. | `src/CLAUDE.md` §5 |
+| P26 | **The auth flow: MediatR handlers with an `IAuthSession` port, a 422 for any failed login, and `rememberMe` for the cookie's lifetime.** Handlers use `UserManager<User>` directly and sign in through `IAuthSession` (Application), which API implements with `SignInManager<User>` (P22), so endpoints stay thin. A wrong password, an unknown email and a locked-out account get the same 422 with one fixed detail, never a 401: the SPA's 401 → `/login` redirect leaves login forms alone, and a lockout doesn't reveal that the account exists. An unknown email still hashes the password. `rememberMe: true` gives Identity's persistent cookie (14 days, sliding), false a session cookie; signup signs in with a session cookie. Signup needs an anonymous caller (422 otherwise), so `CreatedBy` never credits another user; a signed-in user creates more organizations with `POST /organizations`. Decided 2026-10-25, in T1.3. | this plan (T1.3, T1.7) |
+| P27 | **Unique violations surface as `UniqueConstraintViolationException`** (Application), with the constraint's name, the way concurrency does (P11): `WriteAsync` translates PostgreSQL's `23505`. A handler maps its own constraints (`UniqueIndexes`, whose names the configurations give their indexes) to `Result.FieldError`; any other constraint stays a 500, because it is a bug. Identity's `DuplicateEmail` and a lost race on the email index give the same 422. Decided 2026-10-25, in T1.3. | `src/CLAUDE.md` §2 |
+| P28 | **Login and signup are rate-limited** (S6). Signup is limited too: a taken email gives a 422, and it could be used to spam organizations. One `auth` policy on the built-in in-memory limiter (D14): a fixed window with no queue, one budget per endpoint and client address, 10 requests a minute by default (`RateLimiting:Auth`). The client address is the IPv4 address (an IPv4-mapped IPv6 address counts as IPv4) or the /64 prefix of an IPv6 address, which a client usually controls whole. A rejected request gets a 429 Problem Details with `Retry-After`. TestServer has no client address, so each test client sends its own /64 of `2001:db8::/32` through a test-only header. T1.4 adds forgot and reset password. T1.8's E2E run raises the limit, because all its traffic comes from Docker's gateway; Phase 2's proxy needs forwarded headers. Decided 2026-10-25, in T1.3. | ARCHITECTURE §15, S6 |
 
 ## Assumptions (approved with this plan)
 
@@ -70,6 +74,8 @@ If one turns out wrong, change it here, and in its ADR if it has one.
 **Gaps noted, kept as documented (revisit if they cause trouble):**
 - Reassign is only allowed from Assigned (§7). If a technician drops out mid-job, the manager must cancel and re-accept.
 - Self-signup emails stay unverified until Phase 2 (P3).
+- The per-account lockout (S3) can be used as a denial of service: anyone who knows an email can keep that account
+  locked, and the per-IP rate limit doesn't stop many addresses. Revisit in T9.3, and with MFA in Phase 2 (T1.3 plan).
 - No audit-log UI and no GDPR export/deletion tooling (S24) in the MVP.
 
 ---
@@ -323,13 +329,16 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - an anonymous API call → 401 with no redirect
     - user ids are UUIDv7
 
-- [ ] **T1.3 Signup, login, logout, `/me`** · M
+- [x] **T1.3 Signup, login, logout, `/me`** · M
   Scope:
   - `POST /auth/signup`: creates the user, org and Admin membership in one transaction, then signs in.
   - `POST /auth/login`, `POST /auth/logout`.
   - `GET /me`: profile + active memberships with roles.
   - `POST /organizations`: an existing user creates another org.
-  - Rate-limit login (S6).
+  - Rate-limit login and signup (S6). Signup is limited too, because it reveals whether an email has an account.
+  - The trusted organization scope, moved here from T1.5. Signup and `POST /organizations` use it, and later T3.2's
+    invite acceptance. The organization's id is derived on the server, never taken from the body.
+  - Plan: `docs/plans/t1.3-signup-login.md`.
   - Hand-offs from T1.2:
     - Login: `FindByEmailAsync`, then `PasswordSignInAsync(user, …, lockoutOnFailure: true)`. The username is the id
       (P22), and without `lockoutOnFailure` the T1.2 lockout does nothing. An unknown email answers like a wrong
@@ -344,7 +353,11 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
       4. add the membership, then save
       5. commit
 
-      The trusted scope is in T1.5's scope today: move it here, or pull it forward.
+      Planning T1.3 changed three things:
+      - the trusted scope moved here from T1.5
+      - the organization and the membership are saved together, because the organization's id exists before the
+        insert
+      - the scope opens first and stays open through the commit, so the post-commit handlers run inside it
     - A unique violation becomes a 422 field error by its constraint: `ix_users_normalized_email` → `email`,
       `ix_organizations_slug` → `slug`.
 
@@ -391,8 +404,9 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     remember to (review of T1.1).
   - Claims transformation and `ICurrentUser`.
   - Every endpoint needs an org unless it is marked org-less (`/auth/*`, `/me*`, `/organizations`, invite lookup/accept).
-  - A trusted org scope for signup and invite acceptance (the org id is derived on the server, never taken from the body).
-  - Each `IgnoreQueryFilters()` (membership resolution, `/me`) carries a comment justifying it.
+    Org-less endpoints get no organization context; otherwise T1.3's trusted scope throws when it opens.
+  - Membership resolution reads through T1.3's `OwnMemberships`. It is the one query that turns off the organization
+    filter, and it carries the comment justifying that.
   - Cross-tenant test helpers: orgs A and B, a user per role, a mismatched header.
 
   DoD:

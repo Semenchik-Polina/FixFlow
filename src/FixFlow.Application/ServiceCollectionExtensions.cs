@@ -1,5 +1,6 @@
 using System.Reflection;
 using FixFlow.Application.Events;
+using FixFlow.Application.Organizations;
 using FixFlow.Application.Validation;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +14,8 @@ public static class ServiceCollectionExtensions
         [typeof(IInTransactionEventHandler<>), typeof(IPostCommitEventHandler<>)];
 
     /// <summary>
-    /// MediatR handlers with the validation pipeline, the FluentValidation validators and the domain event handlers.
+    /// MediatR handlers with the validation pipeline, the FluentValidation validators, the domain event handlers and
+    /// the services that handlers share.
     /// </summary>
     public static IServiceCollection AddFixFlowApplication(this IServiceCollection services)
     {
@@ -25,6 +27,8 @@ public static class ServiceCollectionExtensions
             .AddOpenBehavior(typeof(ValidationBehavior<,>)));
         services.AddValidatorsFromAssembly(ApplicationAssembly.Instance, includeInternalTypes: true);
         services.AddDomainEventHandlers(ApplicationAssembly.Instance);
+
+        services.AddScoped<OrganizationCreator>();
 
         return services;
     }

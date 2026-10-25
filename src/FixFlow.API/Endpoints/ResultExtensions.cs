@@ -14,6 +14,10 @@ public static class ResultExtensions
     public static Results<Ok<T>, ProblemHttpResult> ToOk<T>(this Result<T> result) =>
         result.IsSuccess ? TypedResults.Ok(result.Value) : result.Error.ToProblem();
 
+    /// <summary>A 201 with the new resource and no <c>Location</c>, for a resource without a GET endpoint yet.</summary>
+    public static Results<Created<T>, ProblemHttpResult> ToCreated<T>(this Result<T> result) =>
+        result.IsSuccess ? TypedResults.Created((string?)null, result.Value) : result.Error.ToProblem();
+
     public static Results<NoContent, ProblemHttpResult> ToNoContent(this Result result) =>
         result.IsSuccess ? TypedResults.NoContent() : result.Error.ToProblem();
 

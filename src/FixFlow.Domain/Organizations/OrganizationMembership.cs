@@ -43,7 +43,7 @@ public sealed class OrganizationMembership : AggregateRoot, IOrganizationOwned, 
 
     /// <summary>
     /// An active membership. Persistence sets <see cref="OrganizationId"/> from the organization context, which signup
-    /// and invite acceptance open for the new member's organization (T1.5).
+    /// and invite acceptance open for the new member's organization (the trusted organization scope, T1.3).
     /// </summary>
     /// <param name="userId">The member.</param>
     /// <param name="roles">At least one; duplicates count once.</param>
