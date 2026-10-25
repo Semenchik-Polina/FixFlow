@@ -70,6 +70,8 @@ If one turns out wrong, change it here, and in its ADR if it has one.
 **Gaps noted, kept as documented (revisit if they cause trouble):**
 - Reassign is only allowed from Assigned (§7). If a technician drops out mid-job, the manager must cancel and re-accept.
 - Self-signup emails stay unverified until Phase 2 (P3).
+- The per-account lockout (S3) can be used as a denial of service: anyone who knows an email can keep that account
+  locked, and the per-IP rate limit doesn't stop many addresses. Revisit in T9.3, and with MFA in Phase 2 (T1.3 plan).
 - No audit-log UI and no GDPR export/deletion tooling (S24) in the MVP.
 
 ---
@@ -329,7 +331,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - `POST /auth/login`, `POST /auth/logout`.
   - `GET /me`: profile + active memberships with roles.
   - `POST /organizations`: an existing user creates another org.
-  - Rate-limit login (S6).
+  - Rate-limit login and signup (S6). Signup is limited too, because it reveals whether an email has an account.
+  - The trusted organization scope, moved here from T1.5. Signup and `POST /organizations` use it, and later T3.2's
+    invite acceptance. The organization's id is derived on the server, never taken from the body.
+  - Plan: `docs/plans/t1.3-signup-login.md`.
   - Hand-offs from T1.2:
     - Login: `FindByEmailAsync`, then `PasswordSignInAsync(user, …, lockoutOnFailure: true)`. The username is the id
       (P22), and without `lockoutOnFailure` the T1.2 lockout does nothing. An unknown email answers like a wrong
@@ -344,7 +349,11 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
       4. add the membership, then save
       5. commit
 
-      The trusted scope is in T1.5's scope today: move it here, or pull it forward.
+      Planning T1.3 changed three things:
+      - the trusted scope moved here from T1.5
+      - the organization and the membership are saved together, because the organization's id exists before the
+        insert
+      - the scope opens first and stays open through the commit, so the post-commit handlers run inside it
     - A unique violation becomes a 422 field error by its constraint: `ix_users_normalized_email` → `email`,
       `ix_organizations_slug` → `slug`.
 
@@ -391,8 +400,9 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     remember to (review of T1.1).
   - Claims transformation and `ICurrentUser`.
   - Every endpoint needs an org unless it is marked org-less (`/auth/*`, `/me*`, `/organizations`, invite lookup/accept).
-  - A trusted org scope for signup and invite acceptance (the org id is derived on the server, never taken from the body).
-  - Each `IgnoreQueryFilters()` (membership resolution, `/me`) carries a comment justifying it.
+    Org-less endpoints get no organization context; otherwise T1.3's trusted scope throws when it opens.
+  - Membership resolution reads through T1.3's `OwnMemberships`. It is the one query that turns off the organization
+    filter, and it carries the comment justifying that.
   - Cross-tenant test helpers: orgs A and B, a user per role, a mismatched header.
 
   DoD:

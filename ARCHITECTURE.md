@@ -833,6 +833,9 @@ running the Compose stack, Cloudflare Tunnel for temporary demos, or free tiers 
 | R13 | Cookie auth complexity with SPA + SignalR | Medium | Medium | Same-origin hosting decided up front (§16) |
 | R14 | Wrong organization context (stale/mismatched `X-Organization` header) | High | Low–Med | Header derived only from the URL slug; membership validated per request; integration tests with mismatched org headers |
 | R15 | Revoked membership or changed roles still effective due to caching | Medium | Low | Short cache TTL + explicit invalidation on membership/role changes; tests for suspended memberships |
+| R17 | Open signup used to send spam or phishing invites (e.g. an organization named after a real company) | High | Low (until hosting) | Invite emails use a fixed template, no free text, and name the person who sent them. When hosted: a daily invite cap per organization; only confirmed emails can send invites (ADR 0003) |
+| R18 | Squatting: signing up with someone else's email (unconfirmed in MVP) or a real company's slug | Low | Low (until hosting) | Password reset recovers the email; email confirmation from Phase 2 (ADR 0003); reserved slug list; disputed slugs fixed by hand |
+| R19 | Throwaway organizations abusing storage (attachments as free file hosting) or keeping invitees' personal data | Medium | Low (until hosting) | Private containers, short-lived SAS (S17), malware scan (S18). When hosted: a storage quota per organization; a retention rule for inactive organizations (S24) |
 
 ---
 
