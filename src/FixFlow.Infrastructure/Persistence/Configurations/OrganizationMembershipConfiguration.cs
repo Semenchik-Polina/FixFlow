@@ -1,4 +1,5 @@
 using FixFlow.Application.Identity;
+using FixFlow.Application.Persistence;
 using FixFlow.Domain.Organizations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -13,7 +14,9 @@ internal sealed class OrganizationMembershipConfiguration : IEntityTypeConfigura
 
         // One membership per user and organization (§10). Led by the user: resolving the organization context (T1.5)
         // and /me look a user's memberships up.
-        builder.HasIndex(m => new { m.UserId, m.OrganizationId }).IsUnique();
+        builder.HasIndex(m => new { m.UserId, m.OrganizationId })
+            .IsUnique()
+            .HasDatabaseName(UniqueIndexes.MembershipUserOrganization);
 
         // Deleting users or organizations is out of the MVP, so nothing cascades into memberships
         builder.HasOne<Organization>().WithMany().HasForeignKey(m => m.OrganizationId).OnDelete(DeleteBehavior.Restrict);

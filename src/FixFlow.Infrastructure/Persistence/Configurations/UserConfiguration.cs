@@ -1,4 +1,5 @@
 using FixFlow.Application.Identity;
+using FixFlow.Application.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -21,6 +22,6 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // Identity names these indexes itself, and leaves the email's non-unique. Sign-in is by email, so two accounts
         // with one email would make it ambiguous (§10).
         builder.HasIndex(u => u.NormalizedUserName).HasDatabaseName("ix_users_normalized_user_name");
-        builder.HasIndex(u => u.NormalizedEmail).IsUnique().HasDatabaseName("ix_users_normalized_email");
+        builder.HasIndex(u => u.NormalizedEmail).IsUnique().HasDatabaseName(UniqueIndexes.UserEmail);
     }
 }

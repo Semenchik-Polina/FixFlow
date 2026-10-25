@@ -11,6 +11,7 @@ using FixFlow.Infrastructure.Persistence.Events;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using Npgsql;
 
 namespace FixFlow.Infrastructure.Persistence;
 
@@ -55,8 +56,19 @@ public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbConte
 
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
 
+    public IQueryable<User> OwnAccount => Users.Where(u => u.Id == CurrentUserId);
+
+    // IgnoreQueryFilters: a user's own memberships decide which organizations they may enter, so they are read before
+    // any organization context exists (/me, T1.5). Only the organization filter is off, and only the caller's rows
+    // are read.
+    public IQueryable<OrganizationMembership> OwnMemberships =>
+        OrganizationMemberships.IgnoreQueryFilters([QueryFilters.Organization]).Where(m => m.UserId == CurrentUserId);
+
     /// <summary>Read by the organization filter on every query; EF Core turns it into a parameter.</summary>
     private Guid? CurrentOrganizationId => _currentUser.OrganizationId;
+
+    /// <summary>Read by the caller's own queries; EF Core turns it into a parameter.</summary>
+    private Guid? CurrentUserId => _currentUser.UserId;
 
     /// <summary>
     /// Dispatches the domain events in two phases around the write. A save that throws ends the unit of work: its
@@ -112,6 +124,16 @@ public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbConte
             when (exception.Entries.Count == 0 || exception.Entries.Any(entry => entry.Entity is not User))
         {
             throw new ConcurrencyConflictException("The record was changed by someone else.", exception);
+        }
+        // After the concurrency catch: DbUpdateConcurrencyException is a DbUpdateException too. The filter on the
+        // SQL state already keeps it out, but this order reads right.
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: { } constraintName,
+        })
+        {
+            throw new UniqueConstraintViolationException(constraintName, exception);
         }
     }
 
