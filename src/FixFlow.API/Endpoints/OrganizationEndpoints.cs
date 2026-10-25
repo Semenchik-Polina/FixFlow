@@ -20,6 +20,7 @@ internal sealed class OrganizationEndpoints : IEndpointModule
             .WithName("CreateOrganization")
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            // A taken slug is a field error
+            .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
     }
 }

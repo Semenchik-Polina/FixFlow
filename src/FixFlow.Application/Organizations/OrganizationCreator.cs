@@ -47,9 +47,12 @@ internal sealed class OrganizationCreator(IFixFlowDbContext db, ICurrentUser cur
         catch (UniqueConstraintViolationException exception)
             when (exception.ConstraintName == UniqueIndexes.OrganizationSlug)
         {
-            return Result.FieldError("slug", "This slug is already taken.");
+            return SlugTaken();
         }
 
         return Result.Success();
     }
+
+    /// <summary>The field error for a slug that another organization has.</summary>
+    public static ResultError SlugTaken() => Result.FieldError("slug", "This slug is already taken.");
 }

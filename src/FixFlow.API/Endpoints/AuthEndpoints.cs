@@ -23,7 +23,8 @@ internal sealed class AuthEndpoints : IEndpointModule
             .RequireRateLimiting(RateLimitPolicies.Auth)
             .WithName("SignUp")
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            // A taken email or slug is a field error
+            .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         // A failure is a 422, never a 401, so the SPA's 401 → /login redirect leaves a login form alone

@@ -71,7 +71,7 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
     /// Handlers query what <see cref="IFixFlowDbContext"/> offers (plan P13), so it offers only organization-owned
     /// sets, the global ones listed here, and the scoped queries listed here (plan P22). A query that isn't a set can
     /// scope itself any way it likes, even turn the organization filter off, so its element type proves nothing: each
-    /// one is listed by name, with its reason.
+    /// one is listed by name, with its reason. A method returning a query would get past that list, so there are none.
     /// </summary>
     [Fact]
     public void DbContextInterface_ExposesOnlyScopedSets()
@@ -96,6 +96,9 @@ public partial class ModelConventionTests(FixFlowApiFactory api)
         Assert.DoesNotContain(
             setElementTypes, t => !typeof(IOrganizationOwned).IsAssignableFrom(t) && !globalSets.Contains(t));
         Assert.DoesNotContain(queryables.Except(sets), p => !scopedQueries.Contains(p.Name));
+        Assert.DoesNotContain(
+            typeof(IFixFlowDbContext).GetMethods(),
+            m => !m.IsSpecialName && QueryableElementType(m.ReturnType) is not null);
     }
 
     [Theory]

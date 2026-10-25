@@ -108,6 +108,19 @@ public class SignUpValidatorTests
         Assert.Equal([nameof(SignUpCommand.Email)], Failed(result));
     }
 
+    [Fact]
+    public void Validate_EmailLongerThanItsColumnOnceNormalized_Fails()
+    {
+        // U+0958 has no composed form in NFC: it becomes U+0915 U+093C, which Identity stores as the normalized email
+        var email = "क़" + new string('a', User.EmailMaxLength - "@example.test".Length - 1) + "@example.test";
+        Assert.Equal(User.EmailMaxLength, email.Length);
+        Assert.Equal(User.EmailMaxLength + 1, email.Normalize().Length);
+
+        var result = _validator.Validate(Valid() with { Email = email });
+
+        Assert.Equal([nameof(SignUpCommand.Email)], Failed(result));
+    }
+
     [Theory]
     [InlineData("Acme\nRentals")]
     [InlineData("Acme\0Rentals")]

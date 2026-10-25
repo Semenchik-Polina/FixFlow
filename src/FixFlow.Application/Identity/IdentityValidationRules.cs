@@ -11,11 +11,19 @@ namespace FixFlow.Application.Identity;
 public static class IdentityValidationRules
 {
     /// <summary>
-    /// Identity's own email check (an <c>@</c> that is neither first nor last), within its column. No control
-    /// characters either: Identity rejects a line break, which would otherwise pass here and fail as a 500.
+    /// Identity's own email check (an <c>@</c> that is neither first nor last), within its column. Identity also stores
+    /// the email's NFC form, uppercased, in a column of the same length, and NFC can be longer (U+0958 becomes two
+    /// characters), so that form must fit too. No control characters either: Identity rejects a line break, which would
+    /// otherwise pass here and fail as a 500.
     /// </summary>
     public static IRuleBuilderOptions<T, string?> Email<T>(this IRuleBuilder<T, string?> rule) =>
-        rule.NotEmpty().MaximumLength(User.EmailMaxLength).EmailAddress().NoControlCharacters();
+        rule
+            .NotEmpty()
+            .MaximumLength(User.EmailMaxLength)
+            .Must(email => email is null || email.Normalize().Length <= User.EmailMaxLength)
+            .WithMessage("'{PropertyName}' is too long.")
+            .EmailAddress()
+            .NoControlCharacters();
 
     /// <summary>A password that is being set (S3): its length is the only rule. Taken as written, never trimmed.</summary>
     public static IRuleBuilderOptions<T, string?> NewPassword<T>(this IRuleBuilder<T, string?> rule) =>

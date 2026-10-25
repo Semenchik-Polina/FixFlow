@@ -60,7 +60,7 @@ public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbConte
 
     // IgnoreQueryFilters: a user's own memberships decide which organizations they may enter, so they are read before
     // any organization context exists (/me, T1.5). Only the organization filter is off, and only the caller's rows
-    // are read.
+    // are read. It's off for the whole query, so callers join only Organizations to it (IFixFlowDbContext).
     public IQueryable<OrganizationMembership> OwnMemberships =>
         OrganizationMemberships.IgnoreQueryFilters([QueryFilters.Organization]).Where(m => m.UserId == CurrentUserId);
 
