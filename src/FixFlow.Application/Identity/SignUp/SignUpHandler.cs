@@ -6,6 +6,7 @@ using FixFlow.Application.Results;
 using FixFlow.Domain.Organizations;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace FixFlow.Application.Identity.SignUp;
@@ -34,6 +35,13 @@ internal sealed partial class SignUpHandler(
         }
 
         var organization = Organization.Create(command.OrganizationName, command.Slug);
+
+        // Fails fast, before hashing the password and inserting the account; the unique index still catches a race
+        if (await db.Organizations.AnyAsync(o => o.Slug == organization.Slug, cancellationToken))
+        {
+            return OrganizationCreator.SlugTaken();
+        }
+
         // Trimmed like the validator checked it, so a stray space can't make a second account
         var user = new User(command.Email.Trim(), command.FirstName, command.LastName);
 
