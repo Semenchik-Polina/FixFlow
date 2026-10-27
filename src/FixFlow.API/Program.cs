@@ -10,6 +10,7 @@ using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
 using FixFlow.Hosting.Telemetry;
+using FixFlow.Infrastructure.Email;
 using FixFlow.Infrastructure.Logging;
 using FixFlow.Infrastructure.Persistence;
 using NodaTime;
@@ -29,20 +30,17 @@ try
 
     builder.AddFixFlowSerilog(ServiceName);
     builder.AddFixFlowTelemetry(ServiceName);
-    if (!BuildTimeDocument.IsGenerating)
-    {
-        builder.Services.AddFixFlowHealthChecks(
-            builder.Configuration.GetPostgresConnectionString(),
-            builder.Configuration.GetRequiredConnectionString("Blob"));
-    }
+    builder.Services.AddFixFlowHealthChecks(
+        services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString(),
+        services => services.GetRequiredService<IConfiguration>().GetRequiredConnectionString("Blob"));
 
     builder.Services.AddSingleton<IClock>(SystemClock.Instance);
     builder.Services.AddFixFlowApplication();
     builder.Services.AddFixFlowPersistence(
         services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString());
     // Local data is test data (S21); everywhere else, logged exceptions lose their messages (ADR 0007)
-    builder.Services.Configure<ExceptionLoggingOptions>(
-        options => options.KeepMessages = builder.Environment.IsDevelopment());
+    builder.Services.AddFixFlowExceptionLogging(keepMessages: builder.Environment.IsDevelopment());
+    builder.Services.AddFixFlowEmail();
     builder.Services.AddFixFlowJson();
     builder.Services.AddFixFlowErrorHandling();
     builder.Services.AddFixFlowAuth();
@@ -68,11 +66,7 @@ try
     app.UseFixFlowRequestLogContext();
     app.UseAuthorization();
 
-    if (!BuildTimeDocument.IsGenerating)
-    {
-        app.MapFixFlowHealthChecks();
-    }
-
+    app.MapFixFlowHealthChecks();
     app.MapFixFlowApi();
     app.MapFixFlowSpa();
 
