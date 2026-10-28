@@ -32,7 +32,7 @@ internal sealed partial class ChangePasswordHandler(
             return Result.NotFound();
         }
 
-        var outcome = await session.CheckPasswordAsync(user, command.CurrentPassword);
+        var outcome = await session.CheckPasswordAsync(user, command.CurrentPassword, cancellationToken);
         if (outcome != SignInOutcome.Succeeded)
         {
             if (outcome == SignInOutcome.LockedOut)

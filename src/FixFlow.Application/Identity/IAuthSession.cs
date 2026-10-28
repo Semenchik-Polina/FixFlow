@@ -14,14 +14,20 @@ public interface IAuthSession
     /// <param name="isPersistent">
     /// A cookie that outlives the browser session ("Keep me signed in"); otherwise a session cookie.
     /// </param>
-    Task<SignInOutcome> PasswordSignInAsync(User user, string password, bool isPersistent);
+    /// <param name="cancellationToken">
+    /// Ends the wait while another attempt on the account checks its password, when the caller leaves. A check that
+    /// has started finishes, and a failure counts.
+    /// </param>
+    Task<SignInOutcome> PasswordSignInAsync(
+        User user, string password, bool isPersistent, CancellationToken cancellationToken);
 
     /// <summary>
     /// Checks the password of a signed-in user before a sensitive change, and signs no one in. Like
     /// <see cref="PasswordSignInAsync"/>, every failure counts towards the lockout (S3), so a stolen session can't be
     /// used to guess the password, and a locked-out account fails even with the right password.
     /// </summary>
-    Task<SignInOutcome> CheckPasswordAsync(User user, string password);
+    /// <param name="cancellationToken">As for <see cref="PasswordSignInAsync"/>.</param>
+    Task<SignInOutcome> CheckPasswordAsync(User user, string password, CancellationToken cancellationToken);
 
     /// <summary>Signs in a user whose credentials the caller has just set, such as a new account.</summary>
     Task SignInAsync(User user, bool isPersistent);
