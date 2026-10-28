@@ -30,7 +30,7 @@ internal sealed partial class LogInHandler(UserManager<User> users, IAuthSession
             return Result.Unprocessable(FailureDetail);
         }
 
-        switch (await session.PasswordSignInAsync(user, command.Password, command.RememberMe))
+        switch (await session.PasswordSignInAsync(user, command.Password, command.RememberMe, cancellationToken))
         {
             case SignInOutcome.Succeeded:
                 LogSignedIn(user.Id);

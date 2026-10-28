@@ -14,7 +14,7 @@ public class LogInTests(FixFlowApiFactory api)
     [Fact]
     public async Task LogIn_RightPassword_Returns204AndSessionCookie()
     {
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var client = api.CreateApiClient();
 
         using var response = await client.LogInAsync(account.Email, account.Password);
@@ -30,7 +30,7 @@ public class LogInTests(FixFlowApiFactory api)
     [Fact]
     public async Task LogIn_RememberMe_SetsPersistentCookie()
     {
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var client = api.CreateApiClient();
 
         using var response = await client.LogInAsync(account.Email, account.Password, rememberMe: true);
@@ -44,7 +44,7 @@ public class LogInTests(FixFlowApiFactory api)
     [Fact]
     public async Task LogIn_FiveWrongPasswords_LocksOut()
     {
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var client = api.CreateApiClient();
         using var first = await client.LogInAsync(account.Email, WrongPassword);
         var wrongPassword = await first.ReadProblemAsync(HttpStatusCode.UnprocessableEntity);
@@ -66,7 +66,7 @@ public class LogInTests(FixFlowApiFactory api)
     public async Task LogIn_ParallelWrongPasswords_LocksOut()
     {
         // Each attempt would otherwise check the count it loaded, and the ones that lose the race to save it don't count
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var client = api.CreateApiClient();
 
         var failed = await Task.WhenAll(Enumerable
@@ -89,7 +89,7 @@ public class LogInTests(FixFlowApiFactory api)
     [Fact]
     public async Task LogIn_UnknownEmail_AnswersLikeWrongPassword()
     {
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var client = api.CreateApiClient();
 
         using var wrong = await client.LogInAsync(account.Email, WrongPassword);
@@ -108,7 +108,7 @@ public class LogInTests(FixFlowApiFactory api)
         // Login CSRF: an HTML form on another site can post only form encodings, and the endpoint accepts JSON only
         // (A11). Routing refuses the content type with an endpoint of its own, which isn't AllowAnonymous, so the
         // fallback policy answers an anonymous caller with 401 before that endpoint's 415.
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         using var anonymous = api.CreateApiClient();
         using var signedIn = api.CreateApiClient();
         await signedIn.SignUpAsync();
@@ -128,7 +128,7 @@ public class LogInTests(FixFlowApiFactory api)
     [Fact]
     public async Task LogIn_Failures_LogNoEmail()
     {
-        var account = await SignUpElsewhereAsync();
+        var account = await api.SignUpElsewhereAsync();
         var unknownEmail = TestData.Email();
         using var client = api.CreateApiClient();
 
@@ -146,13 +146,6 @@ public class LogInTests(FixFlowApiFactory api)
         var templates = api.Logs.Mentioning(userId).Select(logEvent => logEvent.MessageTemplate.Text).ToList();
         Assert.Contains(templates, text => text.Contains("wrong password", StringComparison.Ordinal));
         Assert.Contains(templates, text => text.Contains("signed in", StringComparison.Ordinal));
-    }
-
-    /// <summary>An account that another client created, so the test's own client starts signed out.</summary>
-    private async Task<SignedUp> SignUpElsewhereAsync()
-    {
-        using var client = api.CreateApiClient();
-        return await client.SignUpAsync();
     }
 
     /// <summary>Every member but the trace id, which each response has its own of.</summary>

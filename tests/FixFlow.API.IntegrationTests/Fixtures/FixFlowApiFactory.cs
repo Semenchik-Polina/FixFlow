@@ -20,12 +20,16 @@ namespace FixFlow.API.IntegrationTests.Fixtures;
 /// The API host shared by the whole run (an assembly fixture): test classes take it through their constructor.
 /// Tests run in parallel against it, so they never change shared state: each test creates its own data
 /// (<see cref="TestData"/>) and reads the sinks only by its own unique values. The clock is frozen at
-/// <see cref="SharedNow"/>; a test that moves time uses <see cref="WithOwnClock"/>.
+/// <see cref="SharedNow"/>; a test that moves time uses <see cref="WithOwnClock"/>. Mail goes to <see cref="Emails"/>;
+/// a test of the SMTP path uses <see cref="WithRealEmail"/>.
 /// </summary>
 public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     /// <summary>A Wednesday, weeks away from any DST change in either hemisphere.</summary>
     public static Instant SharedNow { get; } = Instant.FromUtc(2026, 1, 14, 9, 0);
+
+    /// <summary>The app's <c>Spa:PublicUrl</c>: links in emails start with it.</summary>
+    public static Uri SpaPublicUrl { get; } = new("https://fixflow.example.test");
 
     private readonly TestInfrastructure _infrastructure;
     private readonly bool _ownsInfrastructure;
@@ -60,6 +64,23 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public OwnClockApiFactory WithOwnClock(Instant start) => new(_infrastructure, new FakeClock(start));
 
     /// <summary>
+    /// A separate host on the same containers whose mail goes over SMTP to <paramref name="smtp"/>
+    /// (<see cref="MailpitSmtp"/>, <see cref="RejectingSmtp"/> or <see cref="SmtpEndpoint.Closed"/>), not to
+    /// <see cref="Emails"/>. Dispose it with <c>await using</c>.
+    /// </summary>
+    public RealEmailApiFactory WithRealEmail(SmtpEndpoint smtp) =>
+        new(_infrastructure, smtp, new FakeClock(SharedNow));
+
+    /// <summary>A Mailpit that accepts every message: read them with <see cref="Mailpit"/>.</summary>
+    public SmtpEndpoint MailpitSmtp => _infrastructure.MailpitSmtp;
+
+    /// <summary>A Mailpit that rejects every recipient with 550, as a server does for an unknown mailbox.</summary>
+    public SmtpEndpoint RejectingSmtp => _infrastructure.RejectingMailpitSmtp;
+
+    /// <summary>The mail <see cref="MailpitSmtp"/> received. Read it only through your own recipient.</summary>
+    public MailpitApi Mailpit => _infrastructure.Mailpit;
+
+    /// <summary>
     /// A database of its own with test-only entities, for tests of the persistence conventions. Only on the shared
     /// factory.
     /// </summary>
@@ -88,6 +109,11 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Whether <see cref="Emails"/> replaces the app's SMTP sender; <see cref="RealEmailApiFactory"/> keeps it.
+    /// </summary>
+    private protected virtual bool CapturesEmail => true;
+
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
@@ -114,13 +140,18 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             .UseSetting("ConnectionStrings:FixFlow", _infrastructure.AppConnectionString)
             .UseSetting("Database:Password", _infrastructure.AppPassword)
             .UseSetting("ConnectionStrings:Blob", _infrastructure.BlobConnectionString)
+            .UseSetting("Spa:PublicUrl", SpaPublicUrl.AbsoluteUri)
             // Runs after the app's registrations, so these replace the real clock and sender
             .ConfigureTestServices(services =>
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(_clock);
-                services.RemoveAll<IEmailSender>();
-                services.AddSingleton<IEmailSender>(Emails);
+                if (CapturesEmail)
+                {
+                    services.RemoveAll<IEmailSender>();
+                    services.AddSingleton<IEmailSender>(Emails);
+                }
+
                 services.AddSingleton<ILogEventSink>(Logs);
                 // Each client's own address (CreateApiClient), so parallel tests never share a rate limit budget
                 services.AddSingleton<IStartupFilter, ClientAddressStartupFilter>();

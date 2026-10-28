@@ -125,7 +125,7 @@ public class PostCommitFailureLoggingTests(FixFlowApiFactory api)
         await using var services = new ServiceCollection()
             .AddLogging(logging => logging.AddSerilog(
                 new LoggerConfiguration().WriteTo.Sink(logs).CreateLogger(), dispose: true))
-            .Configure<ExceptionLoggingOptions>(options => options.KeepMessages = keepMessages)
+            .AddFixFlowExceptionLogging(keepMessages)
             .AddScoped<DomainEventDispatcher>()
             .AddTransient<IPostCommitEventHandler<WidgetSideEffectThrew>, ThrowingSideEffectHandler>()
             .BuildServiceProvider();

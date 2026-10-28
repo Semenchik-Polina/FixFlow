@@ -33,10 +33,25 @@ public class IdentityCookieTests(FixFlowApiFactory api)
         var signedUp = await client.SignUpAsync();
 
         // Validating the cookie resolves the security stamp validator on every request, so a missing registration
-        // fails here. Comparing the stamps waits for ValidationInterval; T1.4 covers it.
+        // fails here. The reset and change-password tests cover a changed stamp ending a session.
         var current = await client.GetFromJsonAsync<Session>(_session, _ct);
 
         Assert.Equal(await UserIdAsync(signedUp.Email), current!.UserId);
+    }
+
+    [Fact]
+    public async Task SignedIn_Request_LeavesTheCookieAlone()
+    {
+        // The stamp is checked on every request (plan T1.4 D1), but a matching one re-issues nothing: a slow response
+        // that started before a password change would otherwise put back the old stamp and end the session
+        using var client = api.CreateApiClient();
+        var signedUp = await client.SignUpAsync();
+
+        using var response = await client.GetAsync(_session, _ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(AuthCookie.Find(response));
+        Assert.Equal(signedUp.Email, (await client.GetMeAsync()).Email);
     }
 
     [Fact]

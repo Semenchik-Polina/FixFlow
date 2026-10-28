@@ -4,6 +4,7 @@ using FixFlow.Hosting.Logging;
 using FixFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace FixFlow.API.Auth;
 
@@ -23,7 +24,17 @@ public static class AuthExtensions
 
         // The sign-in manager also registers the security stamp validator, which the application cookie calls on every
         // request that carries one
-        services.AddFixFlowIdentity().AddSignInManager();
+        services
+            .AddFixFlowIdentity()
+            .AddSignInManager()
+            .AddTokenProvider<PasswordResetTokenProvider>(PasswordResetTokenProvider.Name);
+        services.Configure<IdentityOptions>(
+            options => options.Tokens.PasswordResetTokenProvider = PasswordResetTokenProvider.Name);
+        // Compares the cookie's stamp with the user's on every request (plan T1.4 D1), so a password reset or change
+        // ends every other session on its next request. Costs a user lookup per request; a matching stamp leaves the
+        // cookie as it is (NonRenewingSecurityStampValidator).
+        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
+        services.Replace(ServiceDescriptor.Scoped<ISecurityStampValidator, NonRenewingSecurityStampValidator>());
         services.AddScoped<IAuthSession, SignInManagerAuthSession>();
 
         services.ConfigureApplicationCookie(options =>

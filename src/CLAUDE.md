@@ -42,8 +42,8 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 - A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
   `MapFixFlowApi()` maps it under `/api/v1` in its own group.
 - Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToCreated()` (201, no `Location` until the
-  resource has a GET) / `.ToNoContent()` (`ResultExtensions`), which map the handler's `Result` to `TypedResults`.
-  No business logic in endpoints.
+  resource has a GET) / `.ToAccepted()` (202, no `Location`) / `.ToNoContent()` (`ResultExtensions`), which map the
+  handler's `Result` to `TypedResults`. No business logic in endpoints.
 - Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
   `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
   validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.
@@ -171,6 +171,8 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 - Exception messages can hold personal data. A failed post-commit handler is logged without them outside Development
   (ADR 0007). To log a reason, throw an exception that implements `ILogSafeMessage`, with a message built from IDs,
   codes and fixed text only.
+- A handler that catches an exception and carries on (forgot-password's failed send) logs
+  `redactor.ForLog(exception)` (`IExceptionRedactor`), never the exception itself, so the same rules apply.
 
 ---
 
@@ -186,13 +188,17 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 - Test naming: `Method_Scenario_ExpectedResult`.
 - Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
   Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
-- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
-  constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
-  cookies, no redirects) from its own client address (a /64 of `2001:db8::/32`), so rate limits never span tests;
-  `.WithOrganization(slug)` sets `X-Organization`.
+- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres, one Azurite and two Mailpits per
+  run) through the constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user
+  session (https, own cookies, no redirects) from its own client address (a /64 of `2001:db8::/32`), so rate limits
+  never span tests; `.WithOrganization(slug)` sets `X-Organization`.
 - Accounts: `client.SignUpAsync()` signs up a new account with its first organization and stays signed in;
   `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
 - Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
   resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
 - The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.
+- Email: `api.Emails` captures what the host sends; `ResetLink.From(message)` and `ResetLink.LatestToken(api.Emails,
+  email)` read a reset link as the SPA does. To send over real SMTP: `await using var app = api.WithRealEmail(smtp)`
+  with `api.MailpitSmtp`, `api.RejectingSmtp` (550 to every recipient) or `SmtpEndpoint.Closed()`; `api.Mailpit`
+  reads what arrived. Chaos is global per Mailpit instance, so never set it on `api.Mailpit`.
 - Run focused: `dotnet test <project> --filter "FullyQualifiedName~<Name>"`.

@@ -20,6 +20,16 @@ public static class IdentityClientExtensions
 
     public static readonly Uri OrganizationsPath = new($"{EndpointModuleExtensions.ApiRoot}/organizations", UriKind.Relative);
 
+    public static readonly Uri ForgotPasswordPath =
+        new($"{EndpointModuleExtensions.ApiRoot}/auth/forgot-password", UriKind.Relative);
+
+    public static readonly Uri ResetPasswordPath =
+        new($"{EndpointModuleExtensions.ApiRoot}/auth/reset-password", UriKind.Relative);
+
+    public static readonly Uri ChangePasswordPath = new($"{EndpointModuleExtensions.ApiRoot}/me/password", UriKind.Relative);
+
+    public static readonly Uri ChangeNamePath = new($"{EndpointModuleExtensions.ApiRoot}/me/name", UriKind.Relative);
+
     /// <summary>Signs up with <paramref name="request"/> (<see cref="TestData.SignUp"/> by default) and stays signed in.</summary>
     public static async Task<SignedUp> SignUpAsync(this HttpClient client, SignUpRequest? request = null)
     {
@@ -32,10 +42,54 @@ public static class IdentityClientExtensions
         return new SignedUp(request.Email, request.Password, organization.Id, organization.Slug);
     }
 
+    /// <summary>
+    /// An account that a client of its own created, so the test's own clients start signed out. On a separate host
+    /// (<see cref="FixFlowApiFactory.WithOwnClock"/>) too.
+    /// </summary>
+    public static async Task<SignedUp> SignUpElsewhereAsync(this FixFlowApiFactory host)
+    {
+        using var client = host.CreateApiClient();
+        return await client.SignUpAsync();
+    }
+
+    /// <summary>
+    /// The code from a reset link that a client of its own asked for, read from <paramref name="host"/>'s
+    /// <see cref="FixFlowApiFactory.Emails"/>.
+    /// </summary>
+    public static async Task<string> RequestResetTokenAsync(this FixFlowApiFactory host, string email)
+    {
+        using var client = host.CreateApiClient();
+        using var response = await client.ForgotPasswordAsync(email);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        return ResetLink.LatestToken(host.Emails, email);
+    }
+
     /// <summary>The response is the caller's to check and dispose.</summary>
     public static Task<HttpResponseMessage> LogInAsync(
         this HttpClient client, string email, string password, bool rememberMe = false) =>
         client.PostAsJsonAsync(LogInPath, new { email, password, rememberMe }, TestContext.Current.CancellationToken);
+
+    /// <summary>Asks for a reset link. The response is the caller's to check and dispose.</summary>
+    public static Task<HttpResponseMessage> ForgotPasswordAsync(this HttpClient client, string email) =>
+        client.PostAsJsonAsync(ForgotPasswordPath, new { email }, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// Sets a new password with the code from a reset link (<see cref="ResetLink.Token"/>). The response is the
+    /// caller's to check and dispose.
+    /// </summary>
+    public static Task<HttpResponseMessage> ResetPasswordAsync(this HttpClient client, string token, string newPassword) =>
+        client.PostAsJsonAsync(ResetPasswordPath, new { token, newPassword }, TestContext.Current.CancellationToken);
+
+    /// <summary>The response is the caller's to check and dispose.</summary>
+    public static Task<HttpResponseMessage> ChangePasswordAsync(
+        this HttpClient client, string currentPassword, string newPassword) =>
+        client.PostAsJsonAsync(
+            ChangePasswordPath, new { currentPassword, newPassword }, TestContext.Current.CancellationToken);
+
+    /// <summary>The response is the caller's to check and dispose.</summary>
+    public static Task<HttpResponseMessage> ChangeNameAsync(this HttpClient client, string firstName, string lastName) =>
+        client.PutAsJsonAsync(ChangeNamePath, new { firstName, lastName }, TestContext.Current.CancellationToken);
 
     /// <summary>Creates another organization as the signed-in caller.</summary>
     public static async Task<CreatedOrganization> CreateOrganizationAsync(this HttpClient client, string name, string slug)

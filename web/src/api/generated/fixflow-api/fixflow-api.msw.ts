@@ -56,6 +56,26 @@ export const getLogOutMockHandler = (overrideResponse?: void | ((info: Parameter
   }, options)
 }
 
+export const getForgotPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/auth/forgot-password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 202
+      })
+  }, options)
+}
+
+export const getResetPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/auth/reset-password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
 export const getGetMeMockHandler = (overrideResponse?: MeResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<MeResponse> | MeResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/v1/me', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
 
@@ -64,6 +84,26 @@ export const getGetMeMockHandler = (overrideResponse?: MeResponse | ((info: Para
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getGetMeResponseMock(),
       { status: 200
+      })
+  }, options)
+}
+
+export const getChangePasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/me/password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getChangeNameMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.put('*/api/v1/me/name', async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
       })
   }, options)
 }
@@ -83,6 +123,10 @@ export const getFixflowApiMock = () => [
   getSignUpMockHandler(),
   getLogInMockHandler(),
   getLogOutMockHandler(),
+  getForgotPasswordMockHandler(),
+  getResetPasswordMockHandler(),
   getGetMeMockHandler(),
+  getChangePasswordMockHandler(),
+  getChangeNameMockHandler(),
   getCreateOrganizationMockHandler()
 ]

@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
+using FixFlow.Application.Errors;
 using FixFlow.Application.Events;
 using FixFlow.Domain;
-using FixFlow.Infrastructure.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace FixFlow.Infrastructure.Persistence.Events;
 
@@ -14,7 +13,7 @@ namespace FixFlow.Infrastructure.Persistence.Events;
 /// </summary>
 public sealed partial class DomainEventDispatcher(
     IServiceProvider services,
-    IOptions<ExceptionLoggingOptions> exceptionLogging,
+    IExceptionRedactor redactor,
     ILogger<DomainEventDispatcher> logger)
 {
     private static readonly ConcurrentDictionary<Type, EventInvoker> _invokers = new();
@@ -32,12 +31,8 @@ public sealed partial class DomainEventDispatcher(
             domainEvent.GetType(),
             type => (EventInvoker)Activator.CreateInstance(typeof(EventInvoker<>).MakeGenericType(type))!);
 
-    /// <summary>
-    /// The exception's message can hold personal data (an SMTP error quoting the address), and log masking doesn't
-    /// cover exceptions (S26). Outside Development, logs get its types and stack traces only (ADR 0007).
-    /// </summary>
-    private Exception ForLog(Exception exception) =>
-        exceptionLogging.Value.KeepMessages ? exception : RedactedException.For(exception);
+    // Without messages outside Development: they can hold personal data (ADR 0007)
+    private Exception ForLog(Exception exception) => redactor.ForLog(exception);
 
     // Types and IDs only: the exception carries the details, and the event's data stays out of the logs (S26)
     [LoggerMessage(Level = LogLevel.Error, Message = "Post-commit handler {Handler} failed for {DomainEvent}")]

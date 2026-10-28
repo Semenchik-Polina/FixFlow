@@ -8,6 +8,7 @@ internal static class ComposeImages
 {
     public const string Postgres = "postgres";
     public const string Azurite = "mcr.microsoft.com/azure-storage/azurite";
+    public const string Mailpit = "axllent/mailpit";
 
     private static readonly Lazy<string[]> _images = new(ReadImages);
 

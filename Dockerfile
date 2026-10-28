@@ -33,7 +33,7 @@ COPY src/ src/
 RUN dotnet publish src/FixFlow.API/FixFlow.API.csproj -c Release --no-restore -o /out/api
 
 FROM build AS bundle
-# dotnet ef runs Program up to Build() as Development to find the DbContext, and Program requires a database password.
+# dotnet ef runs Program up to Build() as Development and creates the DbContext, which requires a database password.
 # This placeholder only satisfies that check; nothing connects, and the bundle reads the real one when it runs.
 RUN Database__Password=design-time-placeholder dotnet ef migrations bundle --configuration Release \
     --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API --output /out/efbundle
