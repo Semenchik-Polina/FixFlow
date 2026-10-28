@@ -96,6 +96,10 @@ public class SignUpValidatorTests
     [InlineData("Mallory<victim@example.test>")]
     [InlineData("<victim@example.test>")]
     [InlineData("user name@example.test")]
+    // A comment, which mail drops, and forms the SMTP library can't read (the full list: ForgotPasswordValidatorTests)
+    [InlineData("victim@example.test(Mallory)")]
+    [InlineData("a,b@example.test")]
+    [InlineData("a..b@example.test")]
     public void Validate_MalformedEmail_Fails(string email)
     {
         var result = _validator.Validate(Valid() with { Email = email });

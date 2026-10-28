@@ -35,6 +35,21 @@ public class MailKitEmailSenderTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task Send_IdnDomain_Delivers()
+    {
+        // MimeKit decodes the domain to münchen; the stored form must still count as the address it is
+        await using var app = api.WithRealEmail(api.MailpitSmtp);
+        var recipient = TestData.Email().Replace("@example.test", "@xn--mnchen-3ya.example.test", StringComparison.Ordinal);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await app.Services.GetRequiredService<IEmailSender>().SendAsync(
+            new EmailMessage(recipient, "Subject", "Body"), cancellationToken);
+
+        var delivered = await api.Mailpit.SingleToAsync(recipient, cancellationToken);
+        Assert.Equal(recipient, Assert.Single(delivered.To).Address);
+    }
+
+    [Fact]
     public async Task Send_RecipientRejected_ThrowsDeliveryExceptionWithStatus()
     {
         await using var app = api.WithRealEmail(api.RejectingSmtp);
@@ -71,6 +86,9 @@ public class MailKitEmailSenderTests(FixFlowApiFactory api)
     [InlineData("Mallory <victim@example.test>")]
     [InlineData("<victim@example.test>")]
     [InlineData("victim@example.test (Mallory)")]
+    [InlineData("victim@example.test(Mallory)")]
+    // MimeKit can't read it
+    [InlineData("a,b@example.test")]
     public async Task Send_RecipientNotABareAddress_ThrowsBeforeConnecting(string recipient)
     {
         // No server: a connection attempt would fail as Connect instead

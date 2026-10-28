@@ -61,12 +61,16 @@ internal sealed class MailKitEmailSender(IOptions<SmtpOptions> options) : IEmail
 
     /// <summary>
     /// The recipient, only as the bare address it is. MimeKit reads <c>Name &lt;someone@example.com&gt;</c> as a display
-    /// name and an address, which would send the mail to an inbox other than the one stored. The email rule rejects
-    /// that form (<c>IdentityValidationRules.Email</c>); this check covers every caller.
+    /// name and an address, and drops a comment, which would send the mail to an inbox other than the one stored. The
+    /// email rule rejects those forms (<c>IdentityValidationRules.Email</c>); this check covers every caller. MimeKit
+    /// also decodes an IDN domain (<c>xn--mnchen-3ya</c> becomes <c>münchen</c>), which is the same inbox, so an
+    /// address stored in that form matches MimeKit's once encoded again.
     /// </summary>
     private static MailboxAddress Recipient(EmailMessage message) =>
         MailboxAddress.TryParse(message.To, out var mailbox)
-        && string.Equals(mailbox.Address, message.To, StringComparison.Ordinal)
+        && (string.Equals(mailbox.Address, message.To, StringComparison.Ordinal)
+            // Encoding lowercases the domain, which ignores case; it leaves the local part as it is
+            || string.Equals(mailbox.GetAddress(idnEncode: true), message.To, StringComparison.OrdinalIgnoreCase))
             ? mailbox
             : throw new ArgumentException("The recipient isn't a bare email address.", nameof(message));
 }

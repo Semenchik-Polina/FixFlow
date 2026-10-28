@@ -104,6 +104,25 @@ public class ChangePasswordTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task ChangePassword_OtherUsersUntouched()
+    {
+        // The account analogue of a cross-tenant test: the request names no user, so only the caller's password changes
+        using var caller = api.CreateApiClient();
+        var callerAccount = await caller.SignUpAsync();
+        using var other = api.CreateApiClient();
+        var otherAccount = await other.SignUpAsync();
+
+        using var response = await caller.ChangePasswordAsync(callerAccount.Password, NewPassword);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        // The other account keeps its session and its password
+        Assert.Equal(otherAccount.Email, (await other.GetMeAsync()).Email);
+        using var fresh = api.CreateApiClient();
+        using var logIn = await fresh.LogInAsync(otherAccount.Email, otherAccount.Password);
+        Assert.Equal(HttpStatusCode.NoContent, logIn.StatusCode);
+    }
+
+    [Fact]
     public async Task ChangePassword_Anonymous_Returns401()
     {
         using var client = api.CreateApiClient();
