@@ -3,7 +3,10 @@
  * Do not edit: run npm run gen:api.
  */
 
+export * from './changeNameCommand';
+export * from './changePasswordCommand';
 export * from './createOrganizationCommand';
+export * from './forgotPasswordCommand';
 export * from './httpValidationProblemDetails';
 export * from './httpValidationProblemDetailsErrors';
 export * from './logInCommand';
@@ -11,5 +14,6 @@ export * from './meResponse';
 export * from './myMembership';
 export * from './organizationCreated';
 export * from './problemDetails';
+export * from './resetPasswordCommand';
 export * from './role';
 export * from './signUpCommand';

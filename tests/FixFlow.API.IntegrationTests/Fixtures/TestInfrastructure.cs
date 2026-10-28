@@ -71,15 +71,20 @@ internal sealed partial class TestInfrastructure : IAsyncDisposable
     public SmtpEndpoint RejectingMailpitSmtp => SmtpOf(_rejectingMailpit);
 
     /// <summary>The API of the Mailpit that accepts every message.</summary>
-    public MailpitApi Mailpit => _mailpitApi ??= new MailpitApi(
-        new UriBuilder(Uri.UriSchemeHttp, _mailpit.Hostname, _mailpit.GetMappedPublicPort(MailpitHttpPort)).Uri);
+    public MailpitApi Mailpit => _mailpitApi ?? throw new InvalidOperationException("The containers aren't started.");
 
-    public Task StartAsync(CancellationToken cancellationToken = default) =>
-        Task.WhenAll(
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        await Task.WhenAll(
             _postgres.StartAsync(cancellationToken),
             _azurite.StartAsync(cancellationToken),
             _mailpit.StartAsync(cancellationToken),
             _rejectingMailpit.StartAsync(cancellationToken));
+
+        // Once, here: parallel tests would otherwise race to create it on first use
+        _mailpitApi = new MailpitApi(
+            new UriBuilder(Uri.UriSchemeHttp, _mailpit.Hostname, _mailpit.GetMappedPublicPort(MailpitHttpPort)).Uri);
+    }
 
     /// <summary>
     /// A new, empty database owned by the app role, like the one the init script creates. The app role can't create

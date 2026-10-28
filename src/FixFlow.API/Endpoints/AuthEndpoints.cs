@@ -1,14 +1,16 @@
 using FixFlow.API.RateLimiting;
+using FixFlow.Application.Identity.ForgotPassword;
 using FixFlow.Application.Identity.LogIn;
 using FixFlow.Application.Identity.LogOut;
+using FixFlow.Application.Identity.ResetPassword;
 using FixFlow.Application.Identity.SignUp;
 using MediatR;
 
 namespace FixFlow.API.Endpoints;
 
 /// <summary>
-/// Signup, login and logout (plan P26). Organization-less: the organization context middleware (T1.5) leaves them
-/// alone, and signup opens a trusted scope of its own.
+/// Signup, login, logout and password reset (plans P26, T1.4). Organization-less: the organization context middleware
+/// (T1.5) leaves them alone, and signup opens a trusted scope of its own.
 /// </summary>
 internal sealed class AuthEndpoints : IEndpointModule
 {
@@ -16,7 +18,8 @@ internal sealed class AuthEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
-        // S7's anonymous allow-list is signup and login only, and both are rate-limited (S6, plan P28)
+        // S7's anonymous allow-list is signup, login and the two password reset steps, and all are rate-limited (S6,
+        // plan P28)
         group.MapPost("/signup", async (SignUpCommand command, ISender sender, CancellationToken ct) =>
                 (await sender.Send(command, ct)).ToCreated())
             .AllowAnonymous()
@@ -43,5 +46,24 @@ internal sealed class AuthEndpoints : IEndpointModule
             .RequireAuthorization()
             .WithName("LogOut")
             .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+        // 202 whether or not the email has an account, so the answer never tells
+        group.MapPost("/forgot-password", async (ForgotPasswordCommand command, ISender sender, CancellationToken ct) =>
+                (await sender.Send(command, ct)).ToAccepted())
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Auth)
+            .WithName("ForgotPassword")
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
+        // Signs no one in: the SPA goes on to its login page
+        group.MapPost("/reset-password", async (ResetPasswordCommand command, ISender sender, CancellationToken ct) =>
+                (await sender.Send(command, ct)).ToNoContent())
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Auth)
+            .WithName("ResetPassword")
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 }

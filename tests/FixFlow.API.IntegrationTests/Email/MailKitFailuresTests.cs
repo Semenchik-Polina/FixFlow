@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using FixFlow.Application.Email;
 using FixFlow.Infrastructure.Email;
+using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -57,6 +58,11 @@ public class MailKitFailuresTests
         { new AuthenticationException($"535 {Address}: bad credentials"), EmailFailureKind.Authentication },
         { new SmtpProtocolException($"Unexpected reply about {Address}"), EmailFailureKind.Protocol },
         { new TimeoutException($"No answer for {Address}"), EmailFailureKind.Timeout },
+        // From SendAsync when the server requires credentials that weren't configured
+        { new ServiceNotAuthenticatedException($"530 {Address}: log in first"), EmailFailureKind.Authentication },
+        { new ServiceNotConnectedException($"Not connected for {Address}"), EmailFailureKind.Connect },
+        // From ConnectAsync without STARTTLS, AuthenticateAsync without AUTH, SendAsync without SMTPUTF8
+        { new NotSupportedException($"No STARTTLS for {Address}"), EmailFailureKind.Unsupported },
     };
 
     [Theory]

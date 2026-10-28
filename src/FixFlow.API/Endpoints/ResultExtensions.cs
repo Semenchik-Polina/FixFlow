@@ -21,6 +21,13 @@ public static class ResultExtensions
     public static Results<NoContent, ProblemHttpResult> ToNoContent(this Result result) =>
         result.IsSuccess ? TypedResults.NoContent() : result.Error.ToProblem();
 
+    /// <summary>
+    /// A 202 with no <c>Location</c>, for a request whose outcome the answer doesn't tell, such as whether a reset email
+    /// went out. There is nothing to poll.
+    /// </summary>
+    public static Results<Accepted, ProblemHttpResult> ToAccepted(this Result result) =>
+        result.IsSuccess ? TypedResults.Accepted((string?)null) : result.Error.ToProblem();
+
     public static ProblemHttpResult ToProblem(this ResultError error) => error switch
     {
         { Type: ErrorType.NotFound } => TypedResults.Problem(statusCode: StatusCodes.Status404NotFound),

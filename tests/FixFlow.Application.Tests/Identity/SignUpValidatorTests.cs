@@ -91,6 +91,11 @@ public class SignUpValidatorTests
     [InlineData(" @example.test")]
     // Identity rejects a line break; FluentValidation's check alone doesn't
     [InlineData("us\ner@example.test")]
+    // A display name and another address, which mail would go to; Identity's check passes them
+    [InlineData("Mallory <victim@example.test>")]
+    [InlineData("Mallory<victim@example.test>")]
+    [InlineData("<victim@example.test>")]
+    [InlineData("user name@example.test")]
     public void Validate_MalformedEmail_Fails(string email)
     {
         var result = _validator.Validate(Valid() with { Email = email });

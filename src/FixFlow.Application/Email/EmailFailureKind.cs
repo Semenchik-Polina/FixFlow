@@ -9,7 +9,7 @@ public enum EmailFailureKind
     /// <summary>The TLS handshake failed: the server's certificate, or no common protocol.</summary>
     Tls,
 
-    /// <summary>The server rejected the credentials.</summary>
+    /// <summary>The server rejected the credentials, or required some that weren't given.</summary>
     Authentication,
 
     /// <summary>The server answered with an error status: a rejected sender or recipient, a full mailbox.</summary>
@@ -20,4 +20,10 @@ public enum EmailFailureKind
 
     /// <summary>The server didn't answer in time.</summary>
     Timeout,
+
+    /// <summary>
+    /// The server lacks an extension that sending needs: STARTTLS (<c>Smtp:Security</c>), authentication
+    /// (<c>Smtp:UserName</c>), or internationalized addresses.
+    /// </summary>
+    Unsupported,
 }

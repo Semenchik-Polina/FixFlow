@@ -50,7 +50,7 @@ internal sealed class MailKitEmailSender(IOptions<SmtpOptions> options) : IEmail
         return new MimeMessage
         {
             From = { from },
-            To = { MailboxAddress.Parse(message.To) },
+            To = { Recipient(message) },
             Subject = message.Subject,
             // From the sender's domain, not this machine's name, which MimeKit would use otherwise
             MessageId = MimeUtils.GenerateMessageId(from.Domain),
@@ -58,4 +58,15 @@ internal sealed class MailKitEmailSender(IOptions<SmtpOptions> options) : IEmail
             Body = body.ToMessageBody(),
         };
     }
+
+    /// <summary>
+    /// The recipient, only as the bare address it is. MimeKit reads <c>Name &lt;someone@example.com&gt;</c> as a display
+    /// name and an address, which would send the mail to an inbox other than the one stored. The email rule rejects
+    /// that form (<c>IdentityValidationRules.Email</c>); this check covers every caller.
+    /// </summary>
+    private static MailboxAddress Recipient(EmailMessage message) =>
+        MailboxAddress.TryParse(message.To, out var mailbox)
+        && string.Equals(mailbox.Address, message.To, StringComparison.Ordinal)
+            ? mailbox
+            : throw new ArgumentException("The recipient isn't a bare email address.", nameof(message));
 }

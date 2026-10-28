@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using FixFlow.Application.Email;
+using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 
@@ -23,11 +24,16 @@ public static class MailKitFailures
             Enum.IsDefined(command.StatusCode) ? command.StatusCode.ToString() : null,
             command.ErrorCode.ToString(),
             command),
-        AuthenticationException => new EmailDeliveryException(EmailFailureKind.Authentication, exception),
+        // SaslException too; ServiceNotAuthenticatedException is the server requiring credentials that weren't given
+        AuthenticationException or ServiceNotAuthenticatedException =>
+            new EmailDeliveryException(EmailFailureKind.Authentication, exception),
         SslHandshakeException => new EmailDeliveryException(EmailFailureKind.Tls, exception),
         SmtpProtocolException => new EmailDeliveryException(EmailFailureKind.Protocol, exception),
         TimeoutException => new EmailDeliveryException(EmailFailureKind.Timeout, exception),
-        SocketException or IOException => new EmailDeliveryException(EmailFailureKind.Connect, exception),
+        SocketException or IOException or ServiceNotConnectedException =>
+            new EmailDeliveryException(EmailFailureKind.Connect, exception),
+        // MailKit's answer when the server lacks STARTTLS, AUTH or SMTPUTF8
+        NotSupportedException => new EmailDeliveryException(EmailFailureKind.Unsupported, exception),
         _ => null,
     };
 }

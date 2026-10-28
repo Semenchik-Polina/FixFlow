@@ -53,10 +53,12 @@ public sealed class EmailDeliveryException : Exception, ILogSafeMessage
     {
         EmailFailureKind.Connect => "Could not connect to the SMTP server.",
         EmailFailureKind.Tls => "The TLS handshake with the SMTP server failed.",
-        EmailFailureKind.Authentication => "The SMTP server rejected the credentials.",
+        EmailFailureKind.Authentication => "The SMTP server rejected the credentials, or requires some.",
         EmailFailureKind.Command => "An SMTP command failed.",
         EmailFailureKind.Protocol => "The SMTP server's reply didn't follow the protocol.",
         EmailFailureKind.Timeout => "The SMTP server didn't answer in time.",
+        EmailFailureKind.Unsupported =>
+            "The SMTP server doesn't support an extension that sending needs (STARTTLS, AUTH or SMTPUTF8).",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

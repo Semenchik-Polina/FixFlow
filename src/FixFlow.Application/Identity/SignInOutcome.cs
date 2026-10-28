@@ -1,6 +1,8 @@
 namespace FixFlow.Application.Identity;
 
-/// <summary>The outcome of <see cref="IAuthSession.PasswordSignInAsync"/>.</summary>
+/// <summary>
+/// The outcome of <see cref="IAuthSession.PasswordSignInAsync"/> and <see cref="IAuthSession.CheckPasswordAsync"/>.
+/// </summary>
 public enum SignInOutcome
 {
     Succeeded,

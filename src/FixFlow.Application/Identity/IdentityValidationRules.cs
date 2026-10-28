@@ -14,7 +14,9 @@ public static class IdentityValidationRules
     /// Identity's own email check (an <c>@</c> that is neither first nor last), within its column. Identity also stores
     /// the email's NFC form, uppercased, in a column of the same length, and NFC can be longer (U+0958 becomes two
     /// characters), so that form must fit too. No control characters either: Identity rejects a line break, which would
-    /// otherwise pass here and fail as a 500.
+    /// otherwise pass here and fail as a 500. And a bare address, with no whitespace or angle brackets: Identity's check
+    /// passes <c>Name &lt;someone@example.com&gt;</c>, which an SMTP library reads as a display name and an address,
+    /// so the account's mail would go to an inbox other than the one stored.
     /// </summary>
     public static IRuleBuilderOptions<T, string?> Email<T>(this IRuleBuilder<T, string?> rule) =>
         rule
@@ -23,6 +25,8 @@ public static class IdentityValidationRules
             .Must(email => email is null || email.Normalize().Length <= User.EmailMaxLength)
             .WithMessage("'{PropertyName}' is too long.")
             .EmailAddress()
+            .Must(email => email is null || !email.Any(c => char.IsWhiteSpace(c) || c is '<' or '>'))
+            .WithMessage("'{PropertyName}' is not a valid email address.")
             .NoControlCharacters();
 
     /// <summary>A password that is being set (S3): its length is the only rule. Taken as written, never trimmed.</summary>

@@ -93,14 +93,13 @@ internal sealed partial class SignUpHandler(
         }
 
         // Codes only: the description of DuplicateEmail holds the address (S26)
-        if (result.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.DuplicateEmail)))
+        if (result.HasError(nameof(IdentityErrorDescriber.DuplicateEmail)))
         {
             return EmailTaken();
         }
 
         // The validator mirrors Identity's rules, so anything else is a bug
-        throw new InvalidOperationException(
-            $"Creating the account failed: {string.Join(", ", result.Errors.Select(error => error.Code))}.");
+        throw result.Unexpected("Creating the account");
     }
 
     private static ResultError EmailTaken() =>

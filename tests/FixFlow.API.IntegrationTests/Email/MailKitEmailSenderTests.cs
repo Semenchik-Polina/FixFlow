@@ -67,6 +67,22 @@ public class MailKitEmailSenderTests(FixFlowApiFactory api)
         Assert.Equal(SocketError.ConnectionRefused, socket.SocketErrorCode);
     }
 
+    [Theory]
+    [InlineData("Mallory <victim@example.test>")]
+    [InlineData("<victim@example.test>")]
+    [InlineData("victim@example.test (Mallory)")]
+    public async Task Send_RecipientNotABareAddress_ThrowsBeforeConnecting(string recipient)
+    {
+        // No server: a connection attempt would fail as Connect instead
+        await using var app = api.WithRealEmail(SmtpEndpoint.Closed());
+        var sender = app.Services.GetRequiredService<IEmailSender>();
+
+        var failure = await Assert.ThrowsAsync<ArgumentException>(() => sender.SendAsync(
+            new EmailMessage(recipient, "Subject", "Body"), TestContext.Current.CancellationToken));
+
+        Assert.Equal("message", failure.ParamName);
+    }
+
     // SMTP sends CRLF; the message was built with LF
     private static string Lines(string body) => body.ReplaceLineEndings("\n").TrimEnd('\n');
 }
