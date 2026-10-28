@@ -6,7 +6,7 @@ using MediatR;
 namespace FixFlow.Application.Identity.ResetPassword;
 
 /// <summary>A visitor sets a new password with the code from a reset link. It signs no one in.</summary>
-/// <param name="Token">The code from the link's fragment (<see cref="PasswordResetCode"/>), as it is.</param>
+/// <param name="Token">The code from the link's fragment (<see cref="ResetPasswordCode"/>), as it is.</param>
 public sealed record ResetPasswordCommand(string Token, string NewPassword) : IRequest<Result>
 {
     // A logged command prints neither the code nor the password (S26)

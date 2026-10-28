@@ -47,10 +47,12 @@ internal sealed partial class ChangePasswordHandler(
             return Result.FieldError(nameof(ChangePasswordCommand.CurrentPassword), WrongPasswordMessage);
         }
 
-        // Checks the current password again, against the hash just checked. A change that saved in between makes this
-        // save lose on the concurrency stamp: a 409.
-        (await users.ChangePasswordAsync(user, command.CurrentPassword, command.NewPassword))
-            .ThrowIfFailed("Changing the password");
+        // Not ChangePasswordAsync, which would hash the current password again (a second PBKDF2 run). A reset token
+        // made here costs microseconds, and ResetPasswordAsync does the rest the same way: it validates the new
+        // password, changes the stamp and saves once. A change that saved since the check makes that save lose on the
+        // concurrency stamp: a 409.
+        var token = await users.GeneratePasswordResetTokenAsync(user);
+        (await users.ResetPasswordAsync(user, token, command.NewPassword)).ThrowIfFailed("Changing the password");
 
         await session.RefreshSignInAsync(user);
         LogChanged(user.Id);

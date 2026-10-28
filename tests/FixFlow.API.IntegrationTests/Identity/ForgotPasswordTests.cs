@@ -33,7 +33,7 @@ public class ForgotPasswordTests(FixFlowApiFactory api)
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var message = Assert.Single(api.Emails.To(account.Email));
-        Assert.Equal(PasswordResetEmail.Subject, message.Subject);
+        Assert.Equal(ResetPasswordEmail.Subject, message.Subject);
         // From checks that the HTML body links to the same address as the text body
         var link = ResetLink.From(message);
         Assert.StartsWith(
@@ -55,7 +55,7 @@ public class ForgotPasswordTests(FixFlowApiFactory api)
         Assert.Empty(api.Emails.To(callerAccount.Email));
         // The link's code names the account the email belongs to
         var token = ResetLink.Token(ResetLink.From(Assert.Single(api.Emails.To(account.Email))));
-        Assert.True(PasswordResetCode.TryParse(token, out var userId, out _));
+        Assert.True(ResetPasswordCode.TryParse(token, out var userId, out _));
         Assert.Equal((await api.FindUserAsync(account.Email))!.Id, userId);
         Assert.Equal(callerAccount.Email, (await caller.GetMeAsync()).Email);
     }

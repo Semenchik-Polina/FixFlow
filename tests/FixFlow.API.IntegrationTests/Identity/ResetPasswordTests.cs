@@ -1,7 +1,11 @@
 using System.Net;
 using FixFlow.API.IntegrationTests.Fixtures;
+using FixFlow.Application.Identity;
 using FixFlow.Application.Identity.ResetPassword;
 using FixFlow.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 
 namespace FixFlow.API.IntegrationTests.Identity;
@@ -144,11 +148,11 @@ public class ResetPasswordTests(FixFlowApiFactory api)
         var victim = await api.SignUpElsewhereAsync();
         var attacker = await api.SignUpElsewhereAsync();
         var attackerCode = await api.RequestResetTokenAsync(attacker.Email);
-        Assert.True(PasswordResetCode.TryParse(attackerCode, out _, out var attackerToken));
+        Assert.True(ResetPasswordCode.TryParse(attackerCode, out _, out var attackerToken));
         var victimId = (await api.FindUserAsync(victim.Email))!.Id;
         using var client = api.CreateApiClient();
 
-        using var response = await client.ResetPasswordAsync(PasswordResetCode.Format(victimId, attackerToken), NewPassword);
+        using var response = await client.ResetPasswordAsync(ResetPasswordCode.Format(victimId, attackerToken), NewPassword);
 
         await AssertInvalidLinkAsync(response);
         using var victimLogIn = await client.LogInAsync(victim.Email, victim.Password);
@@ -177,6 +181,32 @@ public class ResetPasswordTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task ResetPassword_AnotherSaveCameFirst_Returns409_TheLinkStillWorks()
+    {
+        // A failed login saves between the reset's load and its save. It leaves the security stamp, so the token holds.
+        var hasher = new WatchedPasswordHasher();
+        await using var app = api.WithPasswordHasher(hasher);
+        using var client = app.CreateApiClient();
+        var account = await client.SignUpAsync();
+        using (var forgot = await client.ForgotPasswordAsync(account.Email))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, forgot.StatusCode);
+        }
+
+        var token = ResetLink.LatestToken(api.Emails, account.Email);
+        hasher.BeforeNextHash(user => FailLogIn(app, user.Id));
+        using var anonymous = app.CreateApiClient();
+
+        using var lost = await anonymous.ResetPasswordAsync(token, NewPassword);
+        using var again = await anonymous.ResetPasswordAsync(token, NewPassword);
+
+        await lost.ReadProblemAsync(HttpStatusCode.Conflict);
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        using var logIn = await anonymous.LogInAsync(account.Email, NewPassword);
+        Assert.Equal(HttpStatusCode.NoContent, logIn.StatusCode);
+    }
+
+    [Fact]
     public async Task ResetPassword_ConcurrentResets_ExactlyOneSucceeds()
     {
         var account = await api.SignUpElsewhereAsync();
@@ -191,10 +221,23 @@ public class ResetPasswordTests(FixFlowApiFactory api)
         try
         {
             var succeeded = Assert.Single(responses, response => response.StatusCode == HttpStatusCode.NoContent);
-            await AssertInvalidLinkAsync(Assert.Single(responses, response => response != succeeded));
+            // The other checked the token after the winner saved (422), or before, and then lost the save (409)
+            var lost = Assert.Single(responses, response => response != succeeded);
+            if (lost.StatusCode == HttpStatusCode.Conflict)
+            {
+                await lost.ReadProblemAsync(HttpStatusCode.Conflict);
+            }
+            else
+            {
+                await AssertInvalidLinkAsync(lost);
+            }
+
             var winner = succeeded == responses[0] ? "first new passphrase" : "second new passphrase";
             using var logIn = await first.LogInAsync(account.Email, winner);
             Assert.Equal(HttpStatusCode.NoContent, logIn.StatusCode);
+            // Either way the winner used the link, so submitting it again (the SPA's answer to a 409) gets the 422
+            using var again = await second.ResetPasswordAsync(token, "third new passphrase");
+            await AssertInvalidLinkAsync(again);
         }
         finally
         {
@@ -238,18 +281,30 @@ public class ResetPasswordTests(FixFlowApiFactory api)
 
     private static string Tamper(string code, Tampering tampering)
     {
-        Assert.True(PasswordResetCode.TryParse(code, out var userId, out var token));
+        Assert.True(ResetPasswordCode.TryParse(code, out var userId, out var token));
         var middle = token.Length / 2;
 
         return tampering switch
         {
-            Tampering.ChangedCharacter => PasswordResetCode.Format(
+            Tampering.ChangedCharacter => ResetPasswordCode.Format(
                 userId, string.Concat(token.AsSpan(0, middle), token[middle] == 'A' ? "B" : "A", token.AsSpan(middle + 1))),
-            Tampering.CutShort => PasswordResetCode.Format(userId, token[..^1]),
-            Tampering.NotBase64Url => PasswordResetCode.Format(userId, token + "!"),
+            Tampering.CutShort => ResetPasswordCode.Format(userId, token[..^1]),
+            Tampering.NotBase64Url => ResetPasswordCode.Format(userId, token + "!"),
             Tampering.NoUserId => token,
             _ => throw new ArgumentOutOfRangeException(nameof(tampering), tampering, null),
         };
+    }
+
+    /// <summary>
+    /// A failed login's save, in a unit of work of its own: it raises the failed count and the concurrency stamp. Sync,
+    /// because <see cref="IPasswordHasher{TUser}"/> is.
+    /// </summary>
+    private static void FailLogIn(WebApplicationFactory<Program> app, Guid userId)
+    {
+        using var scope = app.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = users.FindByIdAsync(userId.ToString()).GetAwaiter().GetResult();
+        Assert.True(users.AccessFailedAsync(user!).GetAwaiter().GetResult().Succeeded);
     }
 
     /// <summary>The one answer for every bad link: a 422 with a detail and no field.</summary>

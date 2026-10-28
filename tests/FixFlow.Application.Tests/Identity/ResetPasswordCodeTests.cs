@@ -2,7 +2,7 @@ using FixFlow.Application.Identity.ResetPassword;
 
 namespace FixFlow.Application.Tests.Identity;
 
-public class PasswordResetCodeTests
+public class ResetPasswordCodeTests
 {
     // Base64url, like Identity's token: letters, digits, '-' and '_'
     private const string ProviderToken = "reset-code_from-identity";
@@ -12,9 +12,9 @@ public class PasswordResetCodeTests
     {
         var userId = Guid.CreateVersion7();
 
-        var code = PasswordResetCode.Format(userId, ProviderToken);
+        var code = ResetPasswordCode.Format(userId, ProviderToken);
 
-        Assert.True(PasswordResetCode.TryParse(code, out var parsedId, out var parsedToken));
+        Assert.True(ResetPasswordCode.TryParse(code, out var parsedId, out var parsedToken));
         Assert.Equal(userId, parsedId);
         Assert.Equal(ProviderToken, parsedToken);
     }
@@ -22,7 +22,7 @@ public class PasswordResetCodeTests
     [Fact]
     public void Format_IsUrlSafe()
     {
-        var code = PasswordResetCode.Format(Guid.CreateVersion7(), ProviderToken);
+        var code = ResetPasswordCode.Format(Guid.CreateVersion7(), ProviderToken);
 
         Assert.Equal(code, Uri.EscapeDataString(code));
         // The id as 32 hex digits, then the separator
@@ -41,7 +41,7 @@ public class PasswordResetCodeTests
     [InlineData(".reset_code")]
     public void TryParse_Malformed_ReturnsFalse(string? code)
     {
-        Assert.False(PasswordResetCode.TryParse(code, out var userId, out var token));
+        Assert.False(ResetPasswordCode.TryParse(code, out var userId, out var token));
         Assert.Equal(Guid.Empty, userId);
         Assert.Null(token);
     }

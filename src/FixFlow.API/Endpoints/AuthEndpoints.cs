@@ -63,6 +63,8 @@ internal sealed class AuthEndpoints : IEndpointModule
             .RequireRateLimiting(RateLimitPolicies.Auth)
             .WithName("ResetPassword")
             .ProducesValidationProblem()
+            // Another save to the account came first: the SPA submits again with the same link
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }

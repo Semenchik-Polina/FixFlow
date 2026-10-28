@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using NodaTime;
 
 namespace FixFlow.Application.Identity.ResetPassword;
 
@@ -8,8 +9,14 @@ namespace FixFlow.Application.Identity.ResetPassword;
 /// SPA posts it back as it is, so it never handles an email address. URL-safe: hex digits, a dot, and the token's
 /// base64url.
 /// </summary>
-public static class PasswordResetCode
+public static class ResetPasswordCode
 {
+    /// <summary>
+    /// S4: a reset link works for an hour. The token provider expires codes after it, and the reset email states it, so
+    /// the two can't drift apart.
+    /// </summary>
+    public static readonly Duration Lifespan = Duration.FromHours(1);
+
     private const char Separator = '.';
 
     public static string Format(Guid userId, string token) =>

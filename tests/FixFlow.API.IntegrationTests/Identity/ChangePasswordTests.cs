@@ -51,6 +51,22 @@ public class ChangePasswordTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task ChangePassword_ChecksTheCurrentPasswordOnce()
+    {
+        // The check that counts towards the lockout is the only one: setting the new password doesn't hash the current
+        // one again (a PBKDF2 run per check)
+        var hasher = new WatchedPasswordHasher();
+        await using var app = api.WithPasswordHasher(hasher);
+        using var client = app.CreateApiClient();
+        var account = await client.SignUpAsync();
+
+        using var response = await client.ChangePasswordAsync(account.Password, NewPassword);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(1, hasher.Verifications);
+    }
+
+    [Fact]
     public async Task ChangePassword_WrongCurrent_Returns422OnCurrentPassword()
     {
         using var client = api.CreateApiClient();

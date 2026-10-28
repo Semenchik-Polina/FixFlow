@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using FixFlow.Application.Identity;
+using FixFlow.Application.Identity.ResetPassword;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using NodaTime;
@@ -14,19 +15,16 @@ namespace FixFlow.API.Auth;
 /// made, the user's id, the purpose and the security stamp, encoded as base64url so a link carries it as it is.
 /// </summary>
 /// <remarks>
-/// A token is valid for <see cref="Lifespan"/> (S4), for its own user and purpose, and only while the security stamp is
-/// unchanged. A reset or a password change changes the stamp, so a token works once, and every other outstanding token
-/// stops working too. Data Protection authenticates the payload, so a token that was changed, cut short or made with
-/// another key ring fails like an expired one.
+/// A token is valid for <see cref="ResetPasswordCode.Lifespan"/> (S4), for its own user and purpose, and only while the
+/// security stamp is unchanged. A reset or a password change changes the stamp, so a token works once, and every other
+/// outstanding token stops working too. Data Protection authenticates the payload, so a token that was changed, cut
+/// short or made with another key ring fails like an expired one.
 /// </remarks>
 internal sealed class PasswordResetTokenProvider(IDataProtectionProvider dataProtection, IClock clock)
     : IUserTwoFactorTokenProvider<User>
 {
     /// <summary>The name Identity knows the provider by (<c>IdentityOptions.Tokens</c>).</summary>
     public const string Name = "FixFlowPasswordReset";
-
-    /// <summary>S4: a reset link works for an hour. The email says so.</summary>
-    public static readonly Duration Lifespan = Duration.FromHours(1);
 
     private readonly IDataProtector _protector = dataProtection.CreateProtector("FixFlow.Identity.PasswordResetToken");
 
@@ -53,7 +51,7 @@ internal sealed class PasswordResetTokenProvider(IDataProtectionProvider dataPro
         ArgumentNullException.ThrowIfNull(user);
 
         return Read(token) is { } payload
-            && clock.GetCurrentInstant() < payload.Created + Lifespan
+            && clock.GetCurrentInstant() < payload.Created + ResetPasswordCode.Lifespan
             && payload.UserId == await manager.GetUserIdAsync(user)
             && payload.Purpose == purpose
             && payload.SecurityStamp == await manager.GetSecurityStampAsync(user);

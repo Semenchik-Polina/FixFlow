@@ -32,9 +32,10 @@ internal sealed partial class ForgotPasswordHandler(
         try
         {
             var token = await users.GeneratePasswordResetTokenAsync(user);
-            var link = links.ResetPassword(PasswordResetCode.Format(user.Id, token));
+            var link = links.ResetPassword(ResetPasswordCode.Format(user.Id, token));
             // The stored address, not the one typed: they can differ in case
-            await email.SendAsync(PasswordResetEmail.Create(user.Email!, user.FirstName, link), cancellationToken);
+            var message = ResetPasswordEmail.Create(user.Email!, user.FirstName, link, ResetPasswordCode.Lifespan);
+            await email.SendAsync(message, cancellationToken);
         }
         // The caller's cancellation stays a cancellation. Anything else, a wrong setting included, is logged without its
         // personal data: only known emails get this far, so a 500 here would tell that they have an account.
