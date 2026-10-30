@@ -44,6 +44,7 @@ public sealed class OrganizationMembership : AggregateRoot, IOrganizationOwned, 
     /// <summary>
     /// An active membership. Persistence sets <see cref="OrganizationId"/> from the organization context, which signup
     /// and invite acceptance open for the new member's organization (the trusted organization scope, T1.3).
+    /// Raises <see cref="MembershipCreated"/>.
     /// </summary>
     /// <param name="userId">The member.</param>
     /// <param name="roles">At least one; duplicates count once.</param>
@@ -57,16 +58,55 @@ public sealed class OrganizationMembership : AggregateRoot, IOrganizationOwned, 
         }
 
         var membership = new OrganizationMembership(userId, joinedAt);
-        membership.ChangeRoles(roles);
+        membership.SetRoles(roles);
+        membership.Raise(new MembershipCreated(membership.Id, userId));
         return membership;
     }
 
     public bool HasRole(Role role) => _roles.Exists(r => r.Role == role);
 
-    /// <summary>Gives the member exactly these roles. Nothing changes if they aren't valid.</summary>
+    /// <summary>
+    /// Gives the member exactly these roles, and raises <see cref="MembershipRolesChanged"/> if that changes them.
+    /// Nothing changes if they aren't valid.
+    /// </summary>
     /// <param name="roles">At least one; duplicates count once.</param>
     /// <exception cref="DomainException">No roles were given.</exception>
     public void ChangeRoles(IEnumerable<Role> roles)
+    {
+        if (SetRoles(roles))
+        {
+            Raise(new MembershipRolesChanged(Id, UserId));
+        }
+    }
+
+    /// <summary>Takes away the member's access to the organization; their roles are kept for a reactivation.</summary>
+    /// <exception cref="DomainException">The membership is already suspended.</exception>
+    public void Suspend()
+    {
+        if (Status == MembershipStatus.Suspended)
+        {
+            throw new DomainException("This member is already suspended.");
+        }
+
+        Status = MembershipStatus.Suspended;
+        Raise(new MembershipSuspended(Id, UserId));
+    }
+
+    /// <summary>Gives a suspended member their access back, with the roles they had.</summary>
+    /// <exception cref="DomainException">The membership is already active.</exception>
+    public void Reactivate()
+    {
+        if (Status == MembershipStatus.Active)
+        {
+            throw new DomainException("This member is already active.");
+        }
+
+        Status = MembershipStatus.Active;
+        Raise(new MembershipReactivated(Id, UserId));
+    }
+
+    /// <returns>Whether the roles changed.</returns>
+    private bool SetRoles(IEnumerable<Role> roles)
     {
         ArgumentNullException.ThrowIfNull(roles);
 
@@ -87,34 +127,13 @@ public sealed class OrganizationMembership : AggregateRoot, IOrganizationOwned, 
 
         // Keep the roles that stay rather than replacing them all: removing a role and adding it back in the same save
         // would be two rows with one key (membership, role)
-        _roles.RemoveAll(r => !wanted.Contains(r.Role));
-        foreach (var role in wanted.Where(role => !HasRole(role)))
+        var removed = _roles.RemoveAll(r => !wanted.Contains(r.Role));
+        var added = wanted.Where(role => !HasRole(role)).ToList();
+        foreach (var role in added)
         {
             _roles.Add(new MembershipRole(role));
         }
-    }
 
-    /// <summary>Takes away the member's access to the organization; their roles are kept for a reactivation.</summary>
-    /// <exception cref="DomainException">The membership is already suspended.</exception>
-    public void Suspend()
-    {
-        if (Status == MembershipStatus.Suspended)
-        {
-            throw new DomainException("This member is already suspended.");
-        }
-
-        Status = MembershipStatus.Suspended;
-    }
-
-    /// <summary>Gives a suspended member their access back, with the roles they had.</summary>
-    /// <exception cref="DomainException">The membership is already active.</exception>
-    public void Reactivate()
-    {
-        if (Status == MembershipStatus.Active)
-        {
-            throw new DomainException("This member is already active.");
-        }
-
-        Status = MembershipStatus.Active;
+        return removed > 0 || added.Count > 0;
     }
 }

@@ -52,6 +52,15 @@ public class OrganizationMembershipTests
     public void Create_NullRoles_Throws() =>
         Assert.Throws<ArgumentNullException>(() => OrganizationMembership.Create(_userId, null!, _joinedAt));
 
+    [Fact]
+    public void Create_ValidArguments_RaisesOnlyMembershipCreated()
+    {
+        var membership = OrganizationMembership.Create(_userId, [Role.Manager, Role.Technician], _joinedAt);
+
+        // Setting the first roles isn't a role change
+        Assert.Equal([new MembershipCreated(membership.Id, _userId)], membership.DomainEvents);
+    }
+
     [Theory]
     [InlineData(Role.Technician, true)]
     [InlineData(Role.Admin, true)]
@@ -104,6 +113,47 @@ public class OrganizationMembershipTests
         Assert.Equal([Role.Manager], RolesOf(membership));
     }
 
+    [Theory]
+    [InlineData(new[] { Role.Technician, Role.Manager })] // one added, one removed
+    [InlineData(new[] { Role.Tenant, Role.Technician, Role.Admin })] // one added
+    [InlineData(new[] { Role.Technician })] // one removed
+    public void ChangeRoles_DifferentRoles_RaisesRolesChanged(Role[] roles)
+    {
+        var membership = Created(Role.Tenant, Role.Technician);
+
+        membership.ChangeRoles(roles);
+
+        Assert.Equal([new MembershipRolesChanged(membership.Id, _userId)], membership.DomainEvents);
+    }
+
+    [Fact]
+    public void ChangeRoles_SameRolesInAnotherOrder_RaisesNothing()
+    {
+        var membership = Created(Role.Tenant, Role.Technician);
+
+        membership.ChangeRoles([Role.Technician, Role.Tenant, Role.Technician]);
+
+        Assert.Empty(membership.DomainEvents);
+    }
+
+    [Fact]
+    public void ChangeRoles_NoRoles_RaisesNothing()
+    {
+        var membership = Created(Role.Manager);
+
+        Assert.Throws<DomainException>(() => membership.ChangeRoles([]));
+        Assert.Empty(membership.DomainEvents);
+    }
+
+    [Fact]
+    public void ChangeRoles_UndefinedRole_RaisesNothing()
+    {
+        var membership = Created(Role.Manager);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => membership.ChangeRoles([Role.Admin, (Role)42]));
+        Assert.Empty(membership.DomainEvents);
+    }
+
     [Fact]
     public void Suspend_Active_Suspends()
     {
@@ -115,6 +165,16 @@ public class OrganizationMembershipTests
     }
 
     [Fact]
+    public void Suspend_Active_RaisesMembershipSuspended()
+    {
+        var membership = Created(Role.Manager);
+
+        membership.Suspend();
+
+        Assert.Equal([new MembershipSuspended(membership.Id, _userId)], membership.DomainEvents);
+    }
+
+    [Fact]
     public void Suspend_Suspended_Throws()
     {
         var membership = OrganizationMembership.Create(_userId, [Role.Manager], _joinedAt);
@@ -122,6 +182,17 @@ public class OrganizationMembershipTests
 
         var exception = Assert.Throws<DomainException>(membership.Suspend);
         Assert.Equal("This member is already suspended.", exception.Message);
+    }
+
+    [Fact]
+    public void Suspend_Suspended_RaisesNothing()
+    {
+        var membership = Created(Role.Manager);
+        membership.Suspend();
+        membership.ClearDomainEvents();
+
+        Assert.Throws<DomainException>(membership.Suspend);
+        Assert.Empty(membership.DomainEvents);
     }
 
     [Fact]
@@ -137,6 +208,18 @@ public class OrganizationMembershipTests
     }
 
     [Fact]
+    public void Reactivate_Suspended_RaisesMembershipReactivated()
+    {
+        var membership = Created(Role.Manager);
+        membership.Suspend();
+        membership.ClearDomainEvents();
+
+        membership.Reactivate();
+
+        Assert.Equal([new MembershipReactivated(membership.Id, _userId)], membership.DomainEvents);
+    }
+
+    [Fact]
     public void Reactivate_Active_Throws()
     {
         var membership = OrganizationMembership.Create(_userId, [Role.Manager], _joinedAt);
@@ -145,6 +228,23 @@ public class OrganizationMembershipTests
         Assert.Equal("This member is already active.", exception.Message);
     }
 
+    [Fact]
+    public void Reactivate_Active_RaisesNothing()
+    {
+        var membership = Created(Role.Manager);
+
+        Assert.Throws<DomainException>(membership.Reactivate);
+        Assert.Empty(membership.DomainEvents);
+    }
+
     private static Role[] RolesOf(OrganizationMembership membership) =>
         [.. membership.Roles.Select(r => r.Role).Order()];
+
+    /// <summary>A new membership whose <see cref="MembershipCreated"/> was already dispatched.</summary>
+    private static OrganizationMembership Created(params Role[] roles)
+    {
+        var membership = OrganizationMembership.Create(_userId, roles, _joinedAt);
+        membership.ClearDomainEvents();
+        return membership;
+    }
 }

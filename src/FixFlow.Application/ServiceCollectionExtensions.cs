@@ -1,6 +1,7 @@
 using System.Reflection;
 using FixFlow.Application.Events;
 using FixFlow.Application.Organizations;
+using FixFlow.Application.Organizations.Context;
 using FixFlow.Application.Validation;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,8 @@ public static class ServiceCollectionExtensions
         services.AddDomainEventHandlers(ApplicationAssembly.Instance);
 
         services.AddScoped<OrganizationCreator>();
+        // Needs a HybridCache, which the host registers (Infrastructure's AddFixFlowCaching)
+        services.AddScoped<ActiveMembershipResolver>();
 
         return services;
     }

@@ -10,6 +10,7 @@ using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
 using FixFlow.Hosting.Telemetry;
+using FixFlow.Infrastructure.Caching;
 using FixFlow.Infrastructure.Email;
 using FixFlow.Infrastructure.Logging;
 using FixFlow.Infrastructure.Persistence;
@@ -38,6 +39,7 @@ try
     builder.Services.AddFixFlowApplication();
     builder.Services.AddFixFlowPersistence(
         services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString());
+    builder.Services.AddFixFlowCaching();
     // Local data is test data (S21); everywhere else, logged exceptions lose their messages (ADR 0007)
     builder.Services.AddFixFlowExceptionLogging(keepMessages: builder.Environment.IsDevelopment());
     builder.Services.AddFixFlowEmail();
