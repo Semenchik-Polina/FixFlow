@@ -413,6 +413,31 @@ public class OrganizationContextTests(FixFlowApiFactory api)
         Assert.Null(Property(me, "OrganizationId"));
     }
 
+    [Fact]
+    public async Task Refusals_DebugLog_NamesOnlyAValidSlug()
+    {
+        // The header's value is the client's, and anything could be pasted into it: only a slug may reach the log (S26)
+        await using var app = api.WithWebHostBuilder(builder => builder.UseSetting(
+            "Serilog:MinimumLevel:Override:FixFlow.API.Organizations", "Debug"));
+        using var client = app.CreateApiClient();
+        await client.SignUpAsync();
+        var userId = (await client.GetMeAsync()).Id.ToString();
+        var pasted = TestData.Name("Pasted");
+        var unknown = TestData.OrganizationSlug();
+
+        foreach (var value in new[] { pasted, unknown })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, _contextPath).WithOrganization(value);
+            using var response = await client.SendAsync(request, _ct);
+            await AssertBareNotFoundAsync(response);
+        }
+
+        // Both refusals are logged, so Debug is on
+        Assert.Equal(2, EventsOf(userId).Count(logEvent => logEvent.Level == LogEventLevel.Debug));
+        Assert.Empty(api.Logs.Mentioning(pasted));
+        Assert.Single(api.Logs.Mentioning(unknown));
+    }
+
     [Theory]
     [InlineData(HeaderSent.None)]
     [InlineData(HeaderSent.ForeignSlug)]

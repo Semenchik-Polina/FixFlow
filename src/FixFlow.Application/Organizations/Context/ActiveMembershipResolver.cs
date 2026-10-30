@@ -13,6 +13,8 @@ namespace FixFlow.Application.Organizations.Context;
 /// </summary>
 public sealed class ActiveMembershipResolver(IFixFlowDbContext db, ICurrentUser currentUser, HybridCache cache)
 {
+    /// <param name="slug">The organization's slug, as the request names it.</param>
+    /// <param name="cancellationToken">Checked before the lookup only: once it has started, it runs to its end.</param>
     /// <returns>
     /// The membership; or null when the slug isn't valid, no organization has it, or the caller isn't an active member
     /// of it. A miss is cached like a membership.
@@ -30,13 +32,18 @@ public sealed class ActiveMembershipResolver(IFixFlowDbContext db, ICurrentUser 
             return null;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        // Not cancellable: the lookup queries this request's DbContext, and other requests of the same user and slug join
+        // it. HybridCache would stop waiting for a caller who cancels and go on for the others, and this request's scope
+        // would then dispose the context under them. Uncancellable, the lookup also runs inline, in this request's
+        // ExecutionContext, so its logs keep the request's scope and trace.
         return await cache.GetOrCreateAsync(
             MembershipCache.Key(userId, slug),
             (db, slug),
             static (state, ct) => LoadAsync(state.db, state.slug, ct),
             MembershipCache.EntryOptions,
             [MembershipCache.Tag(userId)],
-            cancellationToken);
+            CancellationToken.None);
     }
 
     private static async ValueTask<ActiveMembership?> LoadAsync(

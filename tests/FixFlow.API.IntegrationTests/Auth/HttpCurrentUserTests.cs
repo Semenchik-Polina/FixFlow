@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FixFlow.API.Auth;
 using FixFlow.Application.Auth;
+using FixFlow.Domain.Organizations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,10 +57,62 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task CurrentUser_ReadAfterTheRequestsScopeEnded_HasNoUserOrganizationOrRoles()
+    {
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        var context = new DefaultHttpContext { User = SignedIn(Guid.CreateVersion7()) };
+        accessor.HttpContext = context;
+        var request = _services.CreateAsyncScope();
+        var currentUser = request.ServiceProvider.GetRequiredService<ICurrentUser>();
+        Assert.NotNull(currentUser.UserId);
+
+        await request.DisposeAsync();
+        // Kestrel reuses the HttpContext for the connection's next request, which may be another user's
+        context.User = InOrganization(Guid.CreateVersion7(), Guid.CreateVersion7(), nameof(Role.Admin));
+
+        Assert.Null(currentUser.UserId);
+        Assert.Null(currentUser.OrganizationId);
+        Assert.Empty(currentUser.Roles);
+    }
+
+    [Fact]
     public async Task Roles_SignedInWithoutOrganization_AreEmpty()
     {
         var accessor = _services.GetRequiredService<IHttpContextAccessor>();
         accessor.HttpContext = new DefaultHttpContext { User = SignedIn(Guid.CreateVersion7()) };
+        await using var request = _services.CreateAsyncScope();
+
+        Assert.Empty(request.ServiceProvider.GetRequiredService<ICurrentUser>().Roles);
+    }
+
+    [Fact]
+    public async Task Roles_RoleNames_AreTheRoles()
+    {
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext
+        {
+            User = InOrganization(Guid.CreateVersion7(), Guid.CreateVersion7(), nameof(Role.Tenant), nameof(Role.Manager)),
+        };
+        await using var request = _services.CreateAsyncScope();
+
+        Assert.Equal(
+            [Role.Tenant, Role.Manager],
+            request.ServiceProvider.GetRequiredService<ICurrentUser>().Roles.Order());
+    }
+
+    [Theory]
+    [InlineData("3")] // Admin's number
+    [InlineData("Technician, Manager")] // flags that add up to Admin
+    [InlineData(" Admin")]
+    [InlineData("admin")]
+    [InlineData("Owner")]
+    public async Task Roles_ClaimThatIsNoRolesName_GrantsNothing(string value)
+    {
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext
+        {
+            User = InOrganization(Guid.CreateVersion7(), Guid.CreateVersion7(), value),
+        };
         await using var request = _services.CreateAsyncScope();
 
         Assert.Empty(request.ServiceProvider.GetRequiredService<ICurrentUser>().Roles);
@@ -77,4 +130,19 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
 
     private static ClaimsPrincipal SignedIn(Guid userId) =>
         new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], "Test"));
+
+    /// <summary>Signed in, with an organization context's identity as the middleware adds it.</summary>
+    private static ClaimsPrincipal InOrganization(Guid userId, Guid organizationId, params string[] roles)
+    {
+        var principal = SignedIn(userId);
+        principal.AddIdentity(new ClaimsIdentity(
+            [
+                new Claim(FixFlowClaimTypes.OrganizationId, organizationId.ToString()),
+                .. roles.Select(role => new Claim(FixFlowClaimTypes.Role, role)),
+            ],
+            "Test.Organization",
+            nameType: null,
+            roleType: FixFlowClaimTypes.Role));
+        return principal;
+    }
 }

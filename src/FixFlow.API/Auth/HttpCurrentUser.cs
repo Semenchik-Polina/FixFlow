@@ -24,13 +24,17 @@ namespace FixFlow.API.Auth;
 /// </para>
 /// </remarks>
 internal sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor, TrustedOrganizationScope trustedScope)
-    : ICurrentUser
+    : ICurrentUser, IDisposable
 {
+    private static readonly FrozenDictionary<string, Role> _rolesByName =
+        Enum.GetValues<Role>().ToFrozenDictionary(role => role.ToString());
+
     // The request this scope serves, taken when the scope creates the service. The accessor reads an AsyncLocal, which
-    // work queued without the caller's ExecutionContext doesn't see: HybridCache runs its factories that way, and
-    // their queries read the user and the organization through this class (T1.5). The principal is still read on each
-    // access, because authentication and the organization context set it after services exist.
-    private readonly HttpContext? _httpContext = httpContextAccessor.HttpContext;
+    // work queued without the caller's ExecutionContext doesn't see: HybridCache runs its factories that way when the
+    // caller can cancel, and their queries read the user and the organization through this class (T1.5). The
+    // principal is still read on each access, because authentication and the organization context set it after
+    // services exist. Dropped when the scope ends with the request (Dispose).
+    private HttpContext? _httpContext = httpContextAccessor.HttpContext;
 
     public Guid? UserId => FindId(ClaimTypes.NameIdentifier);
 
@@ -51,8 +55,9 @@ internal sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor, 
         var roles = new HashSet<Role>();
         foreach (var claim in _httpContext?.User.FindAll(FixFlowClaimTypes.Role) ?? [])
         {
-            // The organization context writes the enum's names; anything else grants nothing
-            if (Enum.TryParse<Role>(claim.Value, out var role) && Enum.IsDefined(role))
+            // The organization context writes the enum's names; anything else (a number, flags, another case) grants
+            // nothing
+            if (_rolesByName.TryGetValue(claim.Value, out var role))
             {
                 roles.Add(role);
             }
@@ -60,4 +65,8 @@ internal sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor, 
 
         return roles;
     }
+
+    // The request's scope ends with the request, before the server reuses its HttpContext for the connection's next
+    // one, which may be another user's. Anything that still holds this service sees no user and no organization.
+    public void Dispose() => _httpContext = null;
 }

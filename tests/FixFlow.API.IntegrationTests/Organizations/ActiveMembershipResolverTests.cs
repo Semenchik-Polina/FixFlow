@@ -171,11 +171,41 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         Assert.Equal(["Admin"], (await FoundAsync(founder, shared.Slug)).Roles);
     }
 
+    [Fact]
+    public async Task Find_StartingCallerLeavesAfterAnotherJoined_TheOtherStillFindsIt()
+    {
+        // The lookup queries the DbContext of the request that started it, and a second request for the same user and
+        // slug joins that lookup. If the first request stopped waiting when its caller left, its scope would dispose the
+        // context while the lookup still runs for the second.
+        var gate = new CacheFactoryGate();
+        await using var app = api.WithCacheFactoryGate(gate);
+        using var client = app.CreateApiClient();
+        var signedUp = await client.SignUpAsync();
+        using var leaving = CancellationTokenSource.CreateLinkedTokenSource(_ct);
+        var starting = client.GetAsync(MembershipPath(signedUp.Slug), leaving.Token);
+        await gate.Held.WaitAsync(_ct);
+        var joining = client.GetAsync(MembershipPath(signedUp.Slug), _ct);
+        await gate.Joined.WaitAsync(_ct);
+
+        await leaving.CancelAsync();
+        // Time for the first request to end, and dispose its scope, if it no longer waits for the lookup
+        await Task.Delay(TimeSpan.FromMilliseconds(500), _ct);
+        gate.Release();
+
+        using var response = await joining;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var lookup = await response.Content.ReadFromJsonAsync<Lookup>(_ct);
+        Assert.Equal(signedUp.OrganizationId, lookup?.Membership?.OrganizationId);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+    }
+
+    private static string MembershipPath(string slug) =>
+        $"{OrganizationContextTestEndpoints.Path}/memberships/{Uri.EscapeDataString(slug)}";
+
     /// <summary>The caller's active membership in <paramref name="slug"/>'s organization, or null.</summary>
     private async Task<ResolvedMembership?> FindAsync(HttpClient client, string slug)
     {
-        using var response = await client.GetAsync(
-            $"{OrganizationContextTestEndpoints.Path}/memberships/{Uri.EscapeDataString(slug)}", _ct);
+        using var response = await client.GetAsync(MembershipPath(slug), _ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var lookup = await response.Content.ReadFromJsonAsync<Lookup>(_ct);

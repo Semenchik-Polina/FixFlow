@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FixFlow.API.Auth;
 using FixFlow.Application.Auth;
 using FixFlow.Application.Organizations.Context;
+using FixFlow.Domain.Organizations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FixFlow.API.Organizations;
@@ -39,7 +40,7 @@ internal sealed partial class OrganizationContextMiddleware(
     private const string RepeatedHeaderDetail =
         $"Send the {OrganizationContext.HeaderName} header once, with the slug of one organization.";
 
-    public async Task InvokeAsync(HttpContext context, ActiveMembershipResolver resolver, ICurrentUser currentUser)
+    public async Task InvokeAsync(HttpContext context)
     {
         if (context.GetEndpoint()?.Metadata.GetMetadata<OrganizationContextMetadata>() is not { IsRequired: true }
             || context.User.Identity?.IsAuthenticated != true)
@@ -48,18 +49,32 @@ internal sealed partial class OrganizationContextMiddleware(
             return;
         }
 
+        // Resolved only now: the requests that pass through (health probes, the SPA, organization-less endpoints) would
+        // build a DbContext for nothing
+        var services = context.RequestServices;
+        var userId = services.GetRequiredService<ICurrentUser>().UserId;
         var header = context.Request.Headers[OrganizationContext.HeaderName];
         if (header is not [{ } slug] || string.IsNullOrWhiteSpace(slug))
         {
-            LogInvalidHeader(currentUser.UserId);
+            LogInvalidHeader(userId);
             await WriteBadRequestAsync(context, header.Count > 1 ? RepeatedHeaderDetail : MissingHeaderDetail);
             return;
         }
 
-        var membership = await resolver.FindAsync(slug, context.RequestAborted);
+        var membership = await services.GetRequiredService<ActiveMembershipResolver>()
+            .FindAsync(slug, context.RequestAborted);
         if (membership is null)
         {
-            LogNoMembership(currentUser.UserId, slug);
+            // The value is the client's, and could be anything pasted into the header: only a slug reaches the log
+            if (OrganizationSlug.IsValid(slug, out _))
+            {
+                LogNoMembership(userId, slug);
+            }
+            else
+            {
+                LogInvalidSlug(userId);
+            }
+
             // Bare, so the status code pages write the Problem Details of any other 404
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -95,6 +110,11 @@ internal sealed partial class OrganizationContextMiddleware(
         Level = LogLevel.Debug,
         Message = "No organization context for user {UserId}: the organization header is missing, empty or repeated")]
     private partial void LogInvalidHeader(Guid? userId);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "No organization context for user {UserId}: the organization header holds no valid slug")]
+    private partial void LogInvalidSlug(Guid? userId);
 
     [LoggerMessage(
         Level = LogLevel.Debug,
