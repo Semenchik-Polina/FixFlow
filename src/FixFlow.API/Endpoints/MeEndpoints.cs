@@ -1,3 +1,4 @@
+using FixFlow.API.Organizations;
 using FixFlow.API.RateLimiting;
 using FixFlow.Application.Identity.ChangeName;
 using FixFlow.Application.Identity.ChangePassword;
@@ -7,7 +8,9 @@ using MediatR;
 namespace FixFlow.API.Endpoints;
 
 /// <summary>
-/// The caller's own account. Organization-less: the organization context middleware (T1.5) leaves it alone.
+/// The caller's own account, across all their organizations. Organization-less
+/// (<see cref="OrganizationContextExtensions.WithoutOrganization{TBuilder}"/>): the <c>X-Organization</c> header is
+/// ignored.
 /// </summary>
 internal sealed class MeEndpoints : IEndpointModule
 {
@@ -15,6 +18,8 @@ internal sealed class MeEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
+        group.WithoutOrganization();
+
         // "", not "/": the path stays /api/v1/me, without a trailing slash
         group.MapGet("", async (ISender sender, CancellationToken ct) =>
                 (await sender.Send(new GetMeQuery(), ct)).ToOk())

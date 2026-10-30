@@ -56,6 +56,16 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Roles_SignedInWithoutOrganization_AreEmpty()
+    {
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext { User = SignedIn(Guid.CreateVersion7()) };
+        await using var request = _services.CreateAsyncScope();
+
+        Assert.Empty(request.ServiceProvider.GetRequiredService<ICurrentUser>().Roles);
+    }
+
+    [Fact]
     public async Task UserId_NoRequest_IsNull()
     {
         await using var scope = _services.CreateAsyncScope();
