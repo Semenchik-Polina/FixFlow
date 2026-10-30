@@ -15,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- API and migrations bundle ---------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.402-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble AS build
 WORKDIR /src
 # The build-time OpenAPI document starts the app; CI checks the committed one (plan P9)
 ENV OpenApiGenerateDocuments=false
