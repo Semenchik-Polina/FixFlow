@@ -22,6 +22,9 @@ public sealed partial class OrganizationContextTestEndpoints : IEndpointModule
 {
     public const string Path = $"{EndpointModuleExtensions.ApiRoot}/test-organization";
 
+    /// <summary>The one event that <c>GET /context</c> logs.</summary>
+    public const string ContextReadMessage = "Test endpoint read the organization context";
+
     public string Prefix => "/test-organization";
 
     public void Map(RouteGroupBuilder group)
@@ -55,7 +58,7 @@ public sealed partial class OrganizationContextTestEndpoints : IEndpointModule
         });
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Test endpoint read the organization context")]
+    [LoggerMessage(Level = LogLevel.Information, Message = ContextReadMessage)]
     private static partial void LogContextRead(ILogger logger);
 }
 

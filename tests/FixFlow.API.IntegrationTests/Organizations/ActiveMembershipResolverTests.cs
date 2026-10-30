@@ -75,7 +75,7 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         await client.SignUpAsync();
         var suspended = await client.CreateOrganizationAsync(TestData.Name("Org"), TestData.OrganizationSlug());
         var userId = (await client.GetMeAsync()).Id;
-        await ChangeMembershipAsync(suspended.Id, userId, membership => membership.Suspend());
+        await api.ChangeMembershipAsync(suspended.Id, userId, membership => membership.Suspend());
 
         Assert.Null(await FindAsync(client, suspended.Slug));
     }
@@ -102,7 +102,7 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         await client.SignUpAsync();
         var second = await client.CreateOrganizationAsync(TestData.Name("Org"), TestData.OrganizationSlug());
         var userId = (await client.GetMeAsync()).Id;
-        await ChangeMembershipAsync(second.Id, userId, membership => membership.Suspend());
+        await api.ChangeMembershipAsync(second.Id, userId, membership => membership.Suspend());
         Assert.Null(await FindAsync(client, second.Slug));
 
         await SetStatusWithoutEventsAsync(second.Id, userId, MembershipStatus.Active);
@@ -119,7 +119,7 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         var userId = (await client.GetMeAsync()).Id;
         Assert.NotNull(await FindAsync(client, signedUp.Slug));
 
-        await ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Suspend());
+        await api.ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Suspend());
 
         Assert.Null(await FindAsync(client, signedUp.Slug));
     }
@@ -130,10 +130,10 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         using var client = api.CreateApiClient();
         var signedUp = await client.SignUpAsync();
         var userId = (await client.GetMeAsync()).Id;
-        await ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Suspend());
+        await api.ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Suspend());
         Assert.Null(await FindAsync(client, signedUp.Slug));
 
-        await ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Reactivate());
+        await api.ChangeMembershipAsync(signedUp.OrganizationId, userId, membership => membership.Reactivate());
 
         Assert.Equal(signedUp.OrganizationId, (await FoundAsync(client, signedUp.Slug)).OrganizationId);
     }
@@ -146,7 +146,7 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         var userId = (await client.GetMeAsync()).Id;
         Assert.Equal(["Admin"], (await FoundAsync(client, signedUp.Slug)).Roles);
 
-        await ChangeMembershipAsync(
+        await api.ChangeMembershipAsync(
             signedUp.OrganizationId, userId, membership => membership.ChangeRoles([Role.Admin, Role.Technician]));
 
         Assert.Equal(["Technician", "Admin"], (await FoundAsync(client, signedUp.Slug)).Roles);
@@ -164,12 +164,7 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
         Assert.NotNull(await FindAsync(founder, shared.Slug));
 
         // No invites before T3.2: the user joins the organization directly
-        await api.InOrganizationAsync(shared.OrganizationId, db =>
-        {
-            db.OrganizationMemberships.Add(OrganizationMembership.Create(
-                joinerId, [Role.Manager, Role.Technician], FixFlowApiFactory.SharedNow));
-            return db.SaveChangesAsync(_ct);
-        });
+        await api.JoinAsync(shared.OrganizationId, joinerId, Role.Manager, Role.Technician);
 
         // Each user has their own entries: the founder's are untouched by the joiner's
         Assert.Equal(["Technician", "Manager"], (await FoundAsync(joiner, shared.Slug)).Roles);
@@ -190,15 +185,6 @@ public class ActiveMembershipResolverTests(FixFlowApiFactory api)
     /// <summary>The caller's active membership in <paramref name="slug"/>'s organization, which must exist.</summary>
     private async Task<ResolvedMembership> FoundAsync(HttpClient client, string slug) =>
         await FindAsync(client, slug) ?? throw new InvalidOperationException($"No active membership in {slug}.");
-
-    /// <summary>Changes the membership through the aggregate, so its events reach the post-commit handlers.</summary>
-    private async Task ChangeMembershipAsync(Guid organizationId, Guid userId, Action<OrganizationMembership> change) =>
-        await api.InOrganizationAsync(organizationId, async db =>
-        {
-            var membership = await db.OrganizationMemberships.SingleAsync(m => m.UserId == userId, _ct);
-            change(membership);
-            return await db.SaveChangesAsync(_ct);
-        });
 
     /// <summary>Changes the status in SQL only, without the aggregate: no event, so nothing invalidates the cache.</summary>
     private async Task SetStatusWithoutEventsAsync(Guid organizationId, Guid userId, MembershipStatus status) =>

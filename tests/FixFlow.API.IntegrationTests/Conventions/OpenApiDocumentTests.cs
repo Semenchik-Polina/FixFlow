@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FixFlow.API.IntegrationTests.Fixtures;
+using FixFlow.API.IntegrationTests.Organizations;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
@@ -51,6 +52,43 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
 
         // Anywhere in the document, including query parameters: the generated client would type them number | string
         Assert.Empty(NumericSchemasAcceptingStrings(document, "#"));
+    }
+
+    [Fact]
+    public async Task Document_OrganizationOperations_DeclareTheContextsProblems()
+    {
+        var document = await ReadDocumentAsync();
+
+        var responses = Responses(document, $"{OrganizationContextTestEndpoints.Path}/context", "get");
+
+        AssertProblem(responses, "400");
+        AssertProblem(responses, "404");
+        Assert.True(document.GetProperty("components").GetProperty("schemas").TryGetProperty("ProblemDetails", out _));
+    }
+
+    [Fact]
+    public async Task Document_OrganizationLessOperations_DontDeclareThem()
+    {
+        var document = await ReadDocumentAsync();
+
+        var logOut = Responses(document, IdentityClientExtensions.LogOutPath.OriginalString, "post");
+        var me = Responses(document, IdentityClientExtensions.MePath.OriginalString, "get");
+
+        Assert.False(logOut.TryGetProperty("400", out _));
+        Assert.False(logOut.TryGetProperty("404", out _));
+        // /me declares a 404 of its own (no account), but no 400
+        Assert.False(me.TryGetProperty("400", out _));
+    }
+
+    private static JsonElement Responses(JsonElement document, string path, string method) =>
+        document.GetProperty("paths").GetProperty(path).GetProperty(method).GetProperty("responses");
+
+    /// <summary>As <c>ProducesProblem</c> declares it.</summary>
+    private static void AssertProblem(JsonElement responses, string status)
+    {
+        var schema = responses.GetProperty(status)
+            .GetProperty("content").GetProperty("application/problem+json").GetProperty("schema");
+        Assert.Equal("#/components/schemas/ProblemDetails", schema.GetProperty("$ref").GetString());
     }
 
     private static IEnumerable<string> NumericSchemasAcceptingStrings(JsonElement element, string path)
