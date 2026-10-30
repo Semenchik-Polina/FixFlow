@@ -398,10 +398,10 @@ The active organization is **not** stored in the auth cookie. It is resolved on 
 
 1. The SPA URL contains the organization slug: `/{orgSlug}/...`.
 2. The SPA's HTTP client sends `X-Organization: {orgSlug}` on every API call (taken **only** from the current URL).
-3. `OrganizationContextMiddleware` resolves slug → organization → the user's **active** membership
-   (cached in `HybridCache`, TTL ~60 s, invalidated on membership/role changes).
-4. No active membership → **404**. Otherwise `IClaimsTransformation` adds `OrganizationId` and that membership's roles to the
-   request principal, and `ICurrentUser` exposes them.
+3. `OrganizationContextMiddleware`, which runs after authentication, resolves slug → organization → the user's **active**
+   membership (cached in `HybridCache`, TTL ~60 s, invalidated on membership/role changes). A missing header → **400**.
+4. No active membership → **404**. Otherwise the middleware adds an identity with `OrganizationId` and that membership's
+   roles to the request principal, and `ICurrentUser` exposes them. They never reach the auth cookie.
 5. Endpoints that don't belong to an organization (`/api/v1/me`, which lists the user's memberships, `POST /api/v1/organizations`, auth endpoints) don't require the header.
 
 Consequences:
