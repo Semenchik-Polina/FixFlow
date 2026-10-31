@@ -7,12 +7,21 @@ import {
   http
 } from 'msw';
 import type {
+  HttpResponseResolver,
+  PathParams,
   RequestHandlerOptions
 } from 'msw';
 
 import type {
+  ChangeNameCommand,
+  ChangePasswordCommand,
+  CreateOrganizationCommand,
+  ForgotPasswordCommand,
+  LogInCommand,
   MeResponse,
-  OrganizationCreated
+  OrganizationCreated,
+  ResetPasswordCommand,
+  SignUpCommand
 } from '../model';
 
 import {
@@ -24,8 +33,8 @@ import {
 export { getSignUpResponseMock, getGetMeResponseMock, getCreateOrganizationResponseMock } from './fixflow-api.faker';
 
 
-export const getSignUpMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/auth/signup', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getSignUpMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<HttpResponseResolver<PathParams, SignUpCommand>>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, SignUpCommand>('*/api/v1/auth/signup', async (info: Parameters<HttpResponseResolver<PathParams, SignUpCommand>>[0]) => {
 
 
     return HttpResponse.json(overrideResponse !== undefined
@@ -36,8 +45,8 @@ export const getSignUpMockHandler = (overrideResponse?: OrganizationCreated | ((
   }, options)
 }
 
-export const getLogInMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/auth/login', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getLogInMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, LogInCommand>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, LogInCommand>('*/api/v1/auth/login', async (info: Parameters<HttpResponseResolver<PathParams, LogInCommand>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -46,8 +55,8 @@ export const getLogInMockHandler = (overrideResponse?: void | ((info: Parameters
   }, options)
 }
 
-export const getLogOutMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/auth/logout', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getLogOutMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/auth/logout', async (info: Parameters<HttpResponseResolver>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -56,8 +65,8 @@ export const getLogOutMockHandler = (overrideResponse?: void | ((info: Parameter
   }, options)
 }
 
-export const getForgotPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/auth/forgot-password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getForgotPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ForgotPasswordCommand>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, ForgotPasswordCommand>('*/api/v1/auth/forgot-password', async (info: Parameters<HttpResponseResolver<PathParams, ForgotPasswordCommand>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -66,8 +75,8 @@ export const getForgotPasswordMockHandler = (overrideResponse?: void | ((info: P
   }, options)
 }
 
-export const getResetPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/auth/reset-password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getResetPasswordMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ResetPasswordCommand>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, ResetPasswordCommand>('*/api/v1/auth/reset-password', async (info: Parameters<HttpResponseResolver<PathParams, ResetPasswordCommand>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -76,8 +85,8 @@ export const getResetPasswordMockHandler = (overrideResponse?: void | ((info: Pa
   }, options)
 }
 
-export const getGetMeMockHandler = (overrideResponse?: MeResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<MeResponse> | MeResponse), options?: RequestHandlerOptions) => {
-  return http.get('*/api/v1/me', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
+export const getGetMeMockHandler = (overrideResponse?: MeResponse | ((info: Parameters<HttpResponseResolver>[0]) => Promise<MeResponse> | MeResponse), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/me', async (info: Parameters<HttpResponseResolver>[0]) => {
 
 
     return HttpResponse.json(overrideResponse !== undefined
@@ -88,8 +97,8 @@ export const getGetMeMockHandler = (overrideResponse?: MeResponse | ((info: Para
   }, options)
 }
 
-export const getChangePasswordMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/me/password', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getChangePasswordMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ChangePasswordCommand>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, ChangePasswordCommand>('*/api/v1/me/password', async (info: Parameters<HttpResponseResolver<PathParams, ChangePasswordCommand>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -98,8 +107,8 @@ export const getChangePasswordMockHandler = (overrideResponse?: void | ((info: P
   }, options)
 }
 
-export const getChangeNameMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.put('*/api/v1/me/name', async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+export const getChangeNameMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ChangeNameCommand>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.put<PathParams, ChangeNameCommand>('*/api/v1/me/name', async (info: Parameters<HttpResponseResolver<PathParams, ChangeNameCommand>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,
@@ -108,8 +117,8 @@ export const getChangeNameMockHandler = (overrideResponse?: void | ((info: Param
   }, options)
 }
 
-export const getCreateOrganizationMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
-  return http.post('*/api/v1/organizations', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
+export const getCreateOrganizationMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<HttpResponseResolver<PathParams, CreateOrganizationCommand>>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, CreateOrganizationCommand>('*/api/v1/organizations', async (info: Parameters<HttpResponseResolver<PathParams, CreateOrganizationCommand>>[0]) => {
 
 
     return HttpResponse.json(overrideResponse !== undefined
