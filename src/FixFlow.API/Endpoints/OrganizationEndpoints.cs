@@ -1,11 +1,14 @@
+using FixFlow.API.Organizations;
 using FixFlow.Application.Organizations.CreateOrganization;
 using MediatR;
 
 namespace FixFlow.API.Endpoints;
 
 /// <summary>
-/// Organizations themselves. Creating one is organization-less: the organization context middleware (T1.5) leaves it
-/// alone, and the handler opens a trusted scope for the new organization.
+/// Organizations themselves. Organization-less
+/// (<see cref="OrganizationContextExtensions.WithoutOrganization{TBuilder}"/>): creating one ignores the
+/// <c>X-Organization</c> header, and the handler opens a trusted scope for the new organization. An endpoint for the
+/// request's own organization added here marks itself <see cref="OrganizationContextExtensions.RequireOrganization{TBuilder}"/>.
 /// </summary>
 internal sealed class OrganizationEndpoints : IEndpointModule
 {
@@ -13,6 +16,8 @@ internal sealed class OrganizationEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
+        group.WithoutOrganization();
+
         // "", not "/": the path stays /api/v1/organizations, without a trailing slash
         group.MapPost("", async (CreateOrganizationCommand command, ISender sender, CancellationToken ct) =>
                 (await sender.Send(command, ct)).ToCreated())

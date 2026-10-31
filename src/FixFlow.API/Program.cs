@@ -4,12 +4,14 @@ using FixFlow.API.Endpoints;
 using FixFlow.API.Errors;
 using FixFlow.API.Json;
 using FixFlow.API.OpenApi;
+using FixFlow.API.Organizations;
 using FixFlow.API.RateLimiting;
 using FixFlow.API.Spa;
 using FixFlow.Application;
 using FixFlow.Hosting.Health;
 using FixFlow.Hosting.Logging;
 using FixFlow.Hosting.Telemetry;
+using FixFlow.Infrastructure.Caching;
 using FixFlow.Infrastructure.Email;
 using FixFlow.Infrastructure.Logging;
 using FixFlow.Infrastructure.Persistence;
@@ -38,6 +40,7 @@ try
     builder.Services.AddFixFlowApplication();
     builder.Services.AddFixFlowPersistence(
         services => services.GetRequiredService<IConfiguration>().GetPostgresConnectionString());
+    builder.Services.AddFixFlowCaching();
     // Local data is test data (S21); everywhere else, logged exceptions lose their messages (ADR 0007)
     builder.Services.AddFixFlowExceptionLogging(keepMessages: builder.Environment.IsDevelopment());
     builder.Services.AddFixFlowEmail();
@@ -61,7 +64,8 @@ try
     // A rejected request needs no user. WebApplication adds routing first, so the endpoint's policy is known here.
     app.UseRateLimiter();
     app.UseAuthentication();
-    // T1.5: the organization context middleware goes here
+    // Needs the user, and answers a non-member 404 before authorization can answer 403 (§8)
+    app.UseFixFlowOrganizationContext();
     // Needs the user's claims: keep it after authentication and the organization context middleware
     app.UseFixFlowRequestLogContext();
     app.UseAuthorization();

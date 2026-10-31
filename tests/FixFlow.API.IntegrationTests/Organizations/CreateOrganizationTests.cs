@@ -73,7 +73,7 @@ public class CreateOrganizationTests(FixFlowApiFactory api)
     {
         using var client = api.CreateApiClient();
         var signedUp = await client.SignUpAsync();
-        // Ignored before T1.5; afterwards the middleware must leave this endpoint alone, so the header changes nothing
+        // The endpoint is organization-less, so the organization context middleware ignores the header
         client.WithOrganization(signedUp.Slug);
 
         var created = await client.CreateOrganizationAsync(TestData.Name("Org"), TestData.OrganizationSlug());

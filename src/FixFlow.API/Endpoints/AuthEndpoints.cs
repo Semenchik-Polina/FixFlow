@@ -1,3 +1,4 @@
+using FixFlow.API.Organizations;
 using FixFlow.API.RateLimiting;
 using FixFlow.Application.Identity.ForgotPassword;
 using FixFlow.Application.Identity.LogIn;
@@ -9,8 +10,9 @@ using MediatR;
 namespace FixFlow.API.Endpoints;
 
 /// <summary>
-/// Signup, login, logout and password reset (plans P26, T1.4). Organization-less: the organization context middleware
-/// (T1.5) leaves them alone, and signup opens a trusted scope of its own.
+/// Signup, login, logout and password reset (plans P26, T1.4). Organization-less
+/// (<see cref="OrganizationContextExtensions.WithoutOrganization{TBuilder}"/>): the <c>X-Organization</c> header is
+/// ignored, and signup opens a trusted scope of its own.
 /// </summary>
 internal sealed class AuthEndpoints : IEndpointModule
 {
@@ -18,6 +20,8 @@ internal sealed class AuthEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
+        group.WithoutOrganization();
+
         // S7's anonymous allow-list is signup, login and the two password reset steps, and all are rate-limited (S6,
         // plan P28)
         group.MapPost("/signup", async (SignUpCommand command, ISender sender, CancellationToken ct) =>

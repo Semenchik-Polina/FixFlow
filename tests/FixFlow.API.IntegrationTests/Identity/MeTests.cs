@@ -1,7 +1,6 @@
 using System.Net;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.Domain.Organizations;
-using Microsoft.EntityFrameworkCore;
 
 namespace FixFlow.API.IntegrationTests.Identity;
 
@@ -17,12 +16,7 @@ public class MeTests(FixFlowApiFactory api)
         var suspended = await client.CreateOrganizationAsync(TestData.Name("Org"), TestData.OrganizationSlug());
         var userId = (await client.GetMeAsync()).Id;
 
-        await api.InOrganizationAsync(suspended.Id, async db =>
-        {
-            var membership = await db.OrganizationMemberships.SingleAsync(m => m.UserId == userId, _ct);
-            membership.Suspend();
-            return await db.SaveChangesAsync(_ct);
-        });
+        await api.ChangeMembershipAsync(suspended.Id, userId, membership => membership.Suspend());
 
         var me = await client.GetMeAsync();
         Assert.Equal([signedUp.Slug], me.Memberships.Select(m => m.Slug));
@@ -38,12 +32,7 @@ public class MeTests(FixFlowApiFactory api)
         var own = await second.SignUpAsync(TestData.SignUp() with { OrganizationName = TestData.Name("Bravo") });
         var secondUserId = (await second.GetMeAsync()).Id;
         // No invites before T3.2: the second user joins the first user's organization directly
-        await api.InOrganizationAsync(shared.OrganizationId, db =>
-        {
-            db.OrganizationMemberships.Add(OrganizationMembership.Create(
-                secondUserId, [Role.Admin, Role.Technician], FixFlowApiFactory.SharedNow));
-            return db.SaveChangesAsync(_ct);
-        });
+        await api.JoinAsync(shared.OrganizationId, secondUserId, Role.Admin, Role.Technician);
 
         var firstMe = await first.GetMeAsync();
         var secondMe = await second.GetMeAsync();

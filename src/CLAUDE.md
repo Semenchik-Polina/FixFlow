@@ -142,15 +142,29 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   server derived (the organization it just created, an invite's), never one from the request. Keep it open through the
   commit, so post-commit handlers run in it. `ArchitectureTests` allow-lists the types that may take it; never resolve
   it from `IServiceProvider`, which that test can't see.
-- `OrganizationContextMiddleware` (Api) reads `X-Organization: {slug}`, loads the user's **active** membership
-  (via `HybridCache`, key `membership:{userId}:{slug}`), returns **404** if none, and an `IClaimsTransformation`
-  adds `OrganizationId` + that membership's roles to the principal.
-- Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`.
-  Never read them from `User` entities, request bodies or route values.
-- Organization-less endpoints (`/api/v1/me*`, auth, `POST /api/v1/organizations`) are explicitly marked and must not
-  touch organization-owned data, except through a trusted scope.
-- Any change to memberships/roles must invalidate the tag `user:{userId}:memberships`.
-- SignalR hub validates `?org={slug}` the same way on connect.
+- `OrganizationContextMiddleware` (Api) runs after authentication, on endpoints that need an organization (plan P32).
+  It reads `X-Organization: {slug}`, finds the caller's **active** membership through `ActiveMembershipResolver`
+  (`HybridCache`, key `membership:{userId}:{slug}`, misses cached too), and adds an identity with `OrganizationId` and
+  that membership's roles (`fixflow:role`, so `IsInRole` works) to `User`. Nothing reaches the cookie. A missing, empty
+  or repeated header → 400; any miss → a bare 404; an anonymous caller passes through to the 401.
+- Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`
+  (`OrganizationId`, `Roles`). Never read them from `User` entities, request bodies or route values. `Roles` is empty
+  without an organization context and while a trusted scope is open.
+- Every endpoint under `/api/v1` needs an organization: `MapFixFlowApi` puts `.RequireOrganization()` on the root
+  group. Organization-less endpoints (`/me*`, auth, `POST /organizations`, T3.2's invite lookup and acceptance) call
+  `.WithoutOrganization()` on their group or themselves (the last metadata wins), get no context even when the header
+  is sent, and must not touch organization-owned data, except through a trusted scope.
+  `OrganizationContextCoverageTests` holds them to an allow-list, so a new one is added there deliberately.
+- Change memberships only through the `OrganizationMembership` aggregate. Its events drop the user's tag
+  `user:{userId}:memberships` after the commit (plan P33); a raw SQL or bulk update would stay cached for up to 60 s.
+- A `HybridCache` factory that uses scoped services (the DbContext) is called with `CancellationToken.None`. It runs on
+  the services of the request that started it, and other requests for the same key join it. A cancellable token would
+  let that request end, and dispose them, while the factory still runs for the others. With a cancellable token the
+  factory also runs without the caller's `ExecutionContext`, where `IHttpContextAccessor` reads null. So
+  `HttpCurrentUser` takes the `HttpContext` when it is created and drops it when the request's scope ends.
+- Policies never set `AuthenticationSchemes`: the policy evaluator would authenticate again and rebuild `User` without
+  the organization's identity.
+- SignalR hub validates `?org={slug}` the same way on connect, through `ActiveMembershipResolver`.
 
 ---
 
@@ -194,6 +208,13 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   never span tests; `.WithOrganization(slug)` sets `X-Organization`.
 - Accounts: `client.SignUpAsync()` signs up a new account with its first organization and stays signed in;
   `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
+- Cross-tenant (`CrossTenantExtensions`): `using var orgs = await api.TwoOrganizationsAsync()` gives `orgs.A` and
+  `orgs.B`, each with its `Id`, `Slug` and a signed-in client per role (`Admin`, `Manager`, `Technician`, `Tenant`, or
+  `As(role)` with `TestData.EveryRole`) that already sends its own slug. `api.AddMemberAsync(orgId, roles)` adds a
+  signed-out `TestMember`, `api.MemberOfBothAsync(a, rolesInA, b, rolesInB)` one with different roles per organization,
+  and `api.SignInAsync(member)` signs one in. For a mismatched header, `.WithOrganization(otherSlug)` on a request
+  replaces the client's. Suspend or change roles through the aggregate with `api.ChangeMembershipAsync`, so the cache is
+  invalidated as in production.
 - Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
   resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
 - The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.

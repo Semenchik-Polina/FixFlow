@@ -54,6 +54,13 @@
     <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.14" />
   </ItemGroup>
 
+  <!-- HybridCache, in-process only until Phase 2 adds Redis (plan A7). Its abstraction comes with
+       Microsoft.Extensions.Caching.Abstractions, which EF Core brings: keep this on the release that depends on EF
+       Core's servicing version. -->
+  <ItemGroup Label="Caching">
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
+  </ItemGroup>
+
   <!-- The app's IClock (T0.8) and the tests' FakeClock must come from the same NodaTime -->
   <ItemGroup Label="Time">
     <PackageVersion Include="NodaTime" Version="3.3.7" />

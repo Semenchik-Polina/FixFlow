@@ -1,5 +1,6 @@
 using FixFlow.API.Endpoints;
 using FixFlow.API.IntegrationTests.Fixtures;
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -9,7 +10,7 @@ namespace FixFlow.API.IntegrationTests.Identity;
 
 /// <summary>
 /// A test-only endpoint (registered by <see cref="FixFlowApiFactory"/>) that reads the session back: the current user
-/// and every claim of the principal, to check that none is personal data (S26).
+/// and every claim of the principal, to check that none is personal data (S26). Organization-less, like <c>/me</c>.
 /// </summary>
 public sealed class IdentityTestEndpoints : IEndpointModule
 {
@@ -19,6 +20,8 @@ public sealed class IdentityTestEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
+        group.WithoutOrganization();
+
         group.MapGet("/session", (ICurrentUser currentUser, HttpContext context) => TypedResults.Ok(
             new Session(currentUser.UserId!.Value, [.. context.User.Claims.Select(claim => claim.Value)])));
     }

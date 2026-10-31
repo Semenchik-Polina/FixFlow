@@ -1,4 +1,5 @@
 using FixFlow.API.Endpoints;
+using FixFlow.API.Organizations;
 using FixFlow.Application.Paging;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
@@ -10,7 +11,8 @@ namespace FixFlow.API.IntegrationTests.Conventions;
 /// <summary>
 /// Test-only endpoints (registered by <see cref="Fixtures.FixFlowApiFactory"/>) that run the API conventions through
 /// the app's real pipeline: MediatR + validation, Result → TypedResults, exceptions → Problem Details, JSON and the
-/// fallback policy. Everything is anonymous except <c>/protected</c>: there is no sign-in before T1.3.
+/// fallback policy. Everything is anonymous except <c>/protected</c>: there is no sign-in before T1.3. Organization-less,
+/// so signed-in callers need no <c>X-Organization</c> header either.
 /// </summary>
 public sealed class ConventionTestEndpoints : IEndpointModule
 {
@@ -23,6 +25,8 @@ public sealed class ConventionTestEndpoints : IEndpointModule
 
     public void Map(RouteGroupBuilder group)
     {
+        group.WithoutOrganization();
+
         group.MapGet("/samples/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
                 (await sender.Send(new FindSample(id), ct)).ToOk())
             .AllowAnonymous()

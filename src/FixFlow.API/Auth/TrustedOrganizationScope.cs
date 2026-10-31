@@ -8,7 +8,11 @@ namespace FixFlow.API.Auth;
 /// </summary>
 internal sealed class TrustedOrganizationScope(IHttpContextAccessor httpContextAccessor) : ITrustedOrganizationScope
 {
-    /// <summary>The open scope's organization; null when no scope is open.</summary>
+    /// <summary>
+    /// The open scope's organization. Set only between <see cref="Open"/> and the dispose of what it returns, which
+    /// signup and <c>POST /organizations</c> do for the organization they have just created, and invite acceptance
+    /// (T3.2) will do for the invite's. Null in every other request, and in those before and after.
+    /// </summary>
     public Guid? OrganizationId { get; private set; }
 
     public IDisposable Open(Guid organizationId)

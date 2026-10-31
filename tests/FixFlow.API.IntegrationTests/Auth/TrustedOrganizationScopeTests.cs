@@ -36,6 +36,20 @@ public sealed class TrustedOrganizationScopeTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Open_SignedInWithoutContext_CurrentUserHasNoRoles()
+    {
+        _httpContext.HttpContext!.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, Guid.CreateVersion7().ToString())], authenticationType: "Test"));
+        await using var request = _services.CreateAsyncScope();
+
+        using var scope = TrustedScope(request).Open(Guid.CreateVersion7());
+
+        // The scope gives an organization, never roles: no role check passes inside it
+        Assert.NotNull(CurrentUser(request).OrganizationId);
+        Assert.Empty(CurrentUser(request).Roles);
+    }
+
+    [Fact]
     public async Task Dispose_OpenScope_CurrentUserHasNoOrganization()
     {
         await using var request = _services.CreateAsyncScope();
