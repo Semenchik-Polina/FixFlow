@@ -22,6 +22,18 @@ export function createRoutes(): RouteObject[] {
           lazy: { Component: async () => (await import('../features/auth/pages/LoginPage')).LoginPage },
         },
         {
+          path: globalPaths.forgotPassword,
+          lazy: {
+            Component: async () => (await import('../features/auth/pages/ForgotPasswordPage')).ForgotPasswordPage,
+          },
+        },
+        {
+          path: globalPaths.resetPassword,
+          lazy: {
+            Component: async () => (await import('../features/auth/pages/ResetPasswordPage')).ResetPasswordPage,
+          },
+        },
+        {
           path: ':orgSlug',
           lazy: { Component: async () => (await import('./shell/AppShell')).AppShell },
           children: [
