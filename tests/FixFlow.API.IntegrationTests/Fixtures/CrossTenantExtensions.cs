@@ -70,9 +70,14 @@ public static class CrossTenantExtensions
         return new TestMember(user.Id, user.Email!, TestData.Password);
     }
 
-    // The founder signs up, so the Admin's membership is the one signup creates; the others join and sign in, in parallel
-    private static async Task<TestOrganization> OrganizationWithEveryRoleAsync(this FixFlowApiFactory api)
+    /// <summary>
+    /// One organization with a signed-in member per role, for tests that need no second one. Dispose it with
+    /// <c>using</c>.
+    /// </summary>
+    public static async Task<TestOrganization> OrganizationWithEveryRoleAsync(this FixFlowApiFactory api)
     {
+        // The founder signs up, so the Admin's membership is the one signup creates; the others join and sign in, in
+        // parallel
         var admin = api.CreateApiClient();
         var signedUp = await admin.SignUpAsync();
         var members = await Task.WhenAll(

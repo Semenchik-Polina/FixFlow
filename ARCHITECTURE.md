@@ -426,7 +426,11 @@ Out of MVP: a combined cross-organization view ("my jobs in all organizations"),
 ### Authorization — two layers + a safety net
 
 1. **Fixed roles (endpoint level):** named policies such as `CanAssignWorkOrders` (Manager, Admin) or `CanSubmitRequests` (Tenant) guard endpoints.
-2. **Resource-based policies (record level):** after loading a record, an `AuthorizationHandler<OperationAuthorizationRequirement, TResource>` checks the user's relationship to it:
+   They check the roles of the request's organization (`ICurrentUser.Roles`); a member without the role gets **403**.
+2. **Resource-based policies (record level):** after loading a record, the handler asks `IResourceAuthorizer` whether
+   the caller may perform an operation on it, and the resource's `IResourceAuthorizationHandler<TResource>` checks the
+   user's relationship to it. Both live in Application and read the caller only from `ICurrentUser`, with no ASP.NET Core
+   types:
 
 | Role | Rule |
 |---|---|
@@ -438,8 +442,9 @@ Out of MVP: a combined cross-organization view ("my jobs in all organizations"),
 
 Conventions:
 
-- Checks are written against **operations** (`WorkOrderOps.View`, `WorkOrderOps.UpdateStatus`), not raw `IsInRole` calls, so the logic can later move to a permission model without touching endpoints.
+- Checks are written against **operations** (`WorkOrderOps.Assign`, `WorkOrderOps.UpdateStatus`), not raw `IsInRole` calls, so the logic can later move to a permission model without touching endpoints.
 - **Lists** apply the same rules as query filters (`.VisibleTo(user)`), never by loading and filtering in memory.
+  Detail reads load through the same filter, so a list and a detail never disagree about what the caller sees.
 - Unauthorized access to an existing record returns **404**, not 403, so IDs can't be probed.
 - Tenant-facing DTOs never contain internal notes or internal comments.
 

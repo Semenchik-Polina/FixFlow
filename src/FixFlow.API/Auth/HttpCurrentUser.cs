@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Security.Claims;
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 using FixFlow.Domain.Organizations;
 
@@ -36,24 +37,30 @@ internal sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor, 
     // services exist. Dropped when the scope ends with the request (Dispose).
     private HttpContext? _httpContext = httpContextAccessor.HttpContext;
 
-    public Guid? UserId => FindId(ClaimTypes.NameIdentifier);
+    public Guid? UserId => ParseId(_httpContext?.User.FindFirst(ClaimTypes.NameIdentifier));
 
     // From the open scope (signup, POST /organizations) or from the organization context's claim. A scope opens only
     // when the request has no organization claim, so at most one of the two is set.
-    public Guid? OrganizationId => trustedScope.OrganizationId ?? FindId(FixFlowClaimTypes.OrganizationId);
+    public Guid? OrganizationId =>
+        trustedScope.OrganizationId ?? ParseId(OrganizationIdentity?.FindFirst(FixFlowClaimTypes.OrganizationId));
 
     // A scope id means a handler holds the scope open. The scope gives an organization only, never roles (plan P25):
     // the caller has no membership there yet, or has just created it, so no role check passes inside it. Otherwise
     // the roles are the organization context's claims, and none without a context.
     public IReadOnlySet<Role> Roles => trustedScope.OrganizationId is null ? FindRoles() : FrozenSet<Role>.Empty;
 
-    private Guid? FindId(string claimType) =>
-        Guid.TryParse(_httpContext?.User.FindFirst(claimType)?.Value, out var id) ? id : null;
+    // Only the identity the organization context added in the middleware (plan T1.6). The cookie's identity carries the claims stored
+    // with the account (Identity's user claims), and a search of the whole principal would read them first: a stored
+    // organization or role claim would then hold in every organization.
+    private ClaimsIdentity? OrganizationIdentity => _httpContext?.User.Identities
+        .FirstOrDefault(identity => identity.AuthenticationType == OrganizationContext.AuthenticationType);
+
+    private static Guid? ParseId(Claim? claim) => Guid.TryParse(claim?.Value, out var id) ? id : null;
 
     private HashSet<Role> FindRoles()
     {
         var roles = new HashSet<Role>();
-        foreach (var claim in _httpContext?.User.FindAll(FixFlowClaimTypes.Role) ?? [])
+        foreach (var claim in OrganizationIdentity?.FindAll(FixFlowClaimTypes.Role) ?? [])
         {
             // The organization context writes the enum's names; anything else (a number, flags, another case) grants
             // nothing

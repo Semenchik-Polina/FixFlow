@@ -1,8 +1,5 @@
-using System.Globalization;
 using FixFlow.API.Organizations;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.OpenApi;
 
 namespace FixFlow.API.OpenApi;
@@ -17,40 +14,16 @@ namespace FixFlow.API.OpenApi;
 /// </summary>
 internal sealed class OrganizationContextResponsesTransformer : IOpenApiOperationTransformer
 {
-    private const string ProblemSchemaId = nameof(ProblemDetails);
-
     private static readonly int[] _statusCodes = [StatusCodes.Status400BadRequest, StatusCodes.Status404NotFound];
 
-    public async Task TransformAsync(
+    public Task TransformAsync(
         OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
         // The last one wins, as in the middleware (GetMetadata)
         var metadata = context.Description.ActionDescriptor.EndpointMetadata.OfType<OrganizationContextMetadata>().LastOrDefault();
-        if (metadata is not { IsRequired: true } || context.Document is not { } document)
-        {
-            return;
-        }
 
-        if (document.Components?.Schemas?.ContainsKey(ProblemSchemaId) != true)
-        {
-            document.AddComponent(
-                ProblemSchemaId, await context.GetOrCreateSchemaAsync(typeof(ProblemDetails), null, cancellationToken));
-        }
-
-        operation.Responses ??= [];
-        foreach (var statusCode in _statusCodes)
-        {
-            operation.Responses.TryAdd(statusCode.ToString(CultureInfo.InvariantCulture), new OpenApiResponse
-            {
-                Description = ReasonPhrases.GetReasonPhrase(statusCode),
-                Content = new Dictionary<string, OpenApiMediaType>
-                {
-                    ["application/problem+json"] = new()
-                    {
-                        Schema = new OpenApiSchemaReference(ProblemSchemaId, document),
-                    },
-                },
-            });
-        }
+        return metadata is { IsRequired: true }
+            ? ProblemResponses.TryAddAsync(operation, context, _statusCodes, cancellationToken)
+            : Task.CompletedTask;
     }
 }
