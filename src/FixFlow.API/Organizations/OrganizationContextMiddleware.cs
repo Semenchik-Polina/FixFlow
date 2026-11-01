@@ -32,8 +32,6 @@ internal sealed partial class OrganizationContextMiddleware(
     IProblemDetailsService problemDetailsService,
     ILogger<OrganizationContextMiddleware> logger)
 {
-    private const string AuthenticationType = "FixFlow.Organization";
-
     private const string MissingHeaderDetail =
         $"This endpoint needs the {OrganizationContext.HeaderName} header, with the slug of an organization.";
 
@@ -90,7 +88,7 @@ internal sealed partial class OrganizationContextMiddleware(
             new Claim(FixFlowClaimTypes.OrganizationId, membership.OrganizationId.ToString()),
             .. membership.Roles.Select(role => new Claim(FixFlowClaimTypes.Role, role.ToString())),
         ],
-        AuthenticationType,
+        OrganizationContext.AuthenticationType,
         nameType: null,
         roleType: FixFlowClaimTypes.Role);
 

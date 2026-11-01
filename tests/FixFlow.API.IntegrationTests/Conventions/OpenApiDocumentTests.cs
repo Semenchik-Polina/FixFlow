@@ -1,4 +1,6 @@
 using System.Text.Json;
+using FixFlow.API.Auth;
+using FixFlow.API.IntegrationTests.Auth;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Organizations;
 using Microsoft.AspNetCore.OpenApi;
@@ -78,6 +80,21 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
         Assert.False(logOut.TryGetProperty("404", out _));
         // /me declares a 404 of its own (no account), but no 400
         Assert.False(me.TryGetProperty("400", out _));
+    }
+
+    [Fact]
+    public async Task Document_RolePolicyOperations_Declare403()
+    {
+        var document = await ReadDocumentAsync();
+
+        var guarded = Responses(document, PolicyTestEndpoints.PathOf(Policies.CanManageProperties).OriginalString, "get");
+        var context = Responses(document, $"{OrganizationContextTestEndpoints.Path}/context", "get");
+        var me = Responses(document, IdentityClientExtensions.MePath.OriginalString, "get");
+
+        AssertProblem(guarded, "403");
+        // An organization's endpoint without a role policy, and an organization-less one
+        Assert.False(context.TryGetProperty("403", out _));
+        Assert.False(me.TryGetProperty("403", out _));
     }
 
     private static JsonElement Responses(JsonElement document, string path, string method) =>

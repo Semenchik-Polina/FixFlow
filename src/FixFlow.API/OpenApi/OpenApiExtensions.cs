@@ -8,7 +8,7 @@ public static class OpenApiExtensions
     /// <summary>
     /// The "v1" OpenAPI document, written at build time (<c>openapi.json</c>) for the frontend client.
     /// Enums are string schemas with their names; NodaTime types are inlined as formatted strings. Operations that need
-    /// an organization context also declare its 400 and 404.
+    /// an organization context also declare its 400 and 404, and those behind a role policy its 403.
     /// </summary>
     public static IServiceCollection AddFixFlowOpenApi(this IServiceCollection services) =>
         services.AddOpenApi(options =>
@@ -21,6 +21,7 @@ public static class OpenApiExtensions
             options.AddSchemaTransformer<NodaTimeSchemaTransformer>();
             options.AddSchemaTransformer<StringEnumSchemaTransformer>();
             options.AddOperationTransformer<OrganizationContextResponsesTransformer>();
+            options.AddOperationTransformer<RolePolicyResponsesTransformer>();
             options.CreateSchemaReferenceId = typeInfo => NodaTimeSchemaTransformer.Handles(typeInfo.Type)
                 ? null
                 : OpenApiOptions.CreateDefaultSchemaReferenceId(typeInfo);

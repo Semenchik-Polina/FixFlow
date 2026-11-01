@@ -11,10 +11,10 @@ namespace FixFlow.API.Auth;
 public static class AuthExtensions
 {
     /// <summary>
-    /// Identity, its cookie schemes, the fallback policy and <see cref="ICurrentUser"/>: every endpoint needs a
-    /// signed-in user unless it is allow-listed with <c>AllowAnonymous</c> (S7). Unknown routes too, so anonymous
-    /// callers can't probe for them. Identity comes with <c>AddIdentityCore</c>, not <c>AddIdentity</c>, which would
-    /// register the cookie schemes a second time (plan P10).
+    /// Identity, its cookie schemes, the fallback policy, the role <see cref="Policies"/> and <see cref="ICurrentUser"/>:
+    /// every endpoint needs a signed-in user unless it is allow-listed with <c>AllowAnonymous</c> (S7). Unknown routes
+    /// too, so anonymous callers can't probe for them. Identity comes with <c>AddIdentityCore</c>, not
+    /// <c>AddIdentity</c>, which would register the cookie schemes a second time (plan P10).
     /// </summary>
     public static IServiceCollection AddFixFlowAuth(this IServiceCollection services)
     {
@@ -57,9 +57,19 @@ public static class AuthExtensions
             };
         });
 
-        services
+        var authorization = services
             .AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+        // No policy sets AuthenticationSchemes: the evaluator would authenticate again and rebuild the user without the
+        // organization context's identity (plan T1.5)
+        foreach (var (name, roles) in Policies.Roles)
+        {
+            authorization.AddPolicy(name, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new OrganizationRoleRequirement(roles)));
+        }
+
+        services.AddScoped<IAuthorizationHandler, OrganizationRoleHandler>();
 
         services.AddHttpContextAccessor();
         // One scope object per request, shared by the handler that opens it and the current user that reads it

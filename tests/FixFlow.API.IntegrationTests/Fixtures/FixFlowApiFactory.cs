@@ -1,4 +1,5 @@
 using FixFlow.API.Endpoints;
+using FixFlow.API.IntegrationTests.Auth;
 using FixFlow.API.IntegrationTests.Conventions;
 using FixFlow.API.IntegrationTests.Identity;
 using FixFlow.API.IntegrationTests.Organizations;
@@ -163,6 +164,7 @@ public class FixFlowApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 services.AddEndpointModule<ConventionTestEndpoints>();
                 services.AddEndpointModule<IdentityTestEndpoints>();
                 services.AddEndpointModule<OrganizationContextTestEndpoints>();
+                services.AddEndpointModule<PolicyTestEndpoints>();
             });
     }
 }

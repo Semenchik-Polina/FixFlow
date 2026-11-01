@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FixFlow.API.Auth;
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -88,8 +89,9 @@ public sealed class TrustedOrganizationScopeTests : IAsyncDisposable
     public async Task Open_RequestHasOrganizationClaim_Throws()
     {
         var claimedId = Guid.CreateVersion7();
+        // As the organization context adds it
         _httpContext.HttpContext!.User = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(FixFlowClaimTypes.OrganizationId, claimedId.ToString())], authenticationType: "Test"));
+            [new Claim(FixFlowClaimTypes.OrganizationId, claimedId.ToString())], OrganizationContext.AuthenticationType));
         await using var request = _services.CreateAsyncScope();
 
         Assert.Throws<InvalidOperationException>(() => TrustedScope(request).Open(Guid.CreateVersion7()));

@@ -8,4 +8,11 @@ public static class OrganizationContext
     /// the current URL.
     /// </summary>
     public const string HeaderName = "X-Organization";
+
+    /// <summary>
+    /// The authentication type of the identity that the middleware adds to the request's user. <c>HttpCurrentUser</c>
+    /// reads the organization and the roles from that identity alone: the cookie's identity also carries the claims
+    /// stored with the account, which never decide an organization or a role.
+    /// </summary>
+    public const string AuthenticationType = "FixFlow.Organization";
 }

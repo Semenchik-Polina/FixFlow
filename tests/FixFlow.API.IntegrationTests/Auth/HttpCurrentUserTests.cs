@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FixFlow.API.Auth;
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 using FixFlow.Domain.Organizations;
 using Microsoft.AspNetCore.Http;
@@ -119,6 +120,46 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task CurrentUser_OrganizationClaimsOnTheCookiesIdentity_GiveNoOrganizationOrRoles()
+    {
+        // The claims stored with an account reach the cookie's identity (Identity's user claims)
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, Guid.CreateVersion7().ToString()),
+                new Claim(FixFlowClaimTypes.OrganizationId, Guid.CreateVersion7().ToString()),
+                new Claim(FixFlowClaimTypes.Role, nameof(Role.Admin)),
+            ],
+            "Identity.Application"));
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext { User = principal };
+        await using var request = _services.CreateAsyncScope();
+        var currentUser = request.ServiceProvider.GetRequiredService<ICurrentUser>();
+
+        Assert.Null(currentUser.OrganizationId);
+        Assert.Empty(currentUser.Roles);
+    }
+
+    [Fact]
+    public async Task CurrentUser_OrganizationClaimsOnBothIdentities_AreTheOrganizationContexts()
+    {
+        var organizationId = Guid.CreateVersion7();
+        var principal = InOrganization(Guid.CreateVersion7(), organizationId, nameof(Role.Tenant));
+        // Ahead of the context's identity, where a search of the whole principal would find them first
+        ((ClaimsIdentity)principal.Identity!).AddClaims(
+        [
+            new Claim(FixFlowClaimTypes.OrganizationId, Guid.CreateVersion7().ToString()),
+            new Claim(FixFlowClaimTypes.Role, nameof(Role.Admin)),
+        ]);
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext { User = principal };
+        await using var request = _services.CreateAsyncScope();
+        var currentUser = request.ServiceProvider.GetRequiredService<ICurrentUser>();
+
+        Assert.Equal(organizationId, currentUser.OrganizationId);
+        Assert.Equal([Role.Tenant], currentUser.Roles);
+    }
+
+    [Fact]
     public async Task UserId_NoRequest_IsNull()
     {
         await using var scope = _services.CreateAsyncScope();
@@ -140,7 +181,7 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
                 new Claim(FixFlowClaimTypes.OrganizationId, organizationId.ToString()),
                 .. roles.Select(role => new Claim(FixFlowClaimTypes.Role, role)),
             ],
-            "Test.Organization",
+            OrganizationContext.AuthenticationType,
             nameType: null,
             roleType: FixFlowClaimTypes.Role));
         return principal;
