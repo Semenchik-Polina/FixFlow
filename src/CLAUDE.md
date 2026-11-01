@@ -10,7 +10,7 @@ Background: `ARCHITECTURE.md` §4, §7–§15.
 | Project | Responsibility | May reference |
 |---|---|---|
 | `FixFlow.Domain` | Entities, value objects, state machines, domain events, domain errors | NodaTime, Stateless only |
-| `FixFlow.Application` | Commands/queries, handlers, validators, authorization handlers, interfaces (`IBlobStorage`, `IEmailSender`, ...) | Domain |
+| `FixFlow.Application` | Commands/queries, handlers, validators, resource authorization handlers, interfaces (`IBlobStorage`, `IEmailSender`, ...) | Domain |
 | `FixFlow.Infrastructure` | EF Core `DbContext`, configurations, migrations, interceptors, Identity stores, Blob, Email, Redis, MassTransit | Application, Domain |
 | `FixFlow.API` | Endpoint mapping, SignalR hubs, auth setup, Problem Details, DI composition, serves SPA in prod | all of the above |
 | `FixFlow.Contracts` | Integration event records shared with workers | nothing |
@@ -32,8 +32,8 @@ FixFlow.Application/WorkOrders/
 │  ├─ AssignTechnicianHandler.cs
 │  └─ AssignTechnicianValidator.cs
 ├─ GetWorkOrders/                     # query + handler + response DTO
-├─ WorkOrderOps.cs                    # OperationAuthorizationRequirement definitions
-├─ WorkOrderAuthorizationHandler.cs
+├─ WorkOrderOps.cs                    # Operation definitions
+├─ WorkOrderAuthorizationHandler.cs   # IResourceAuthorizationHandler<WorkOrder>
 └─ WorkOrderQueryExtensions.cs        # .VisibleTo(user)
 
 FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-orders" → /api/v1/work-orders
@@ -51,7 +51,9 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   own constraints (`UniqueIndexes`) and returns `Result.FieldError`; any other constraint stays a 500.
 - List queries implement `IPagedQuery`, return `PagedResult<T>`, and their validator derives from
   `PagedQueryValidator<T>` (pageSize ≤ 100).
-- Every endpoint declares `.RequireAuthorization(<policy>)`; anonymous ones use `.AllowAnonymous()` explicitly.
+- Every endpoint declares its authorization: an organization endpoint `.RequireAuthorization(Policies.<RolePolicy>)`, an
+  organization-less one `.RequireAuthorization()`, an anonymous one `.AllowAnonymous()`. `EndpointCoverageTests` holds
+  them to it, with the anonymous allow-list (S7).
   Endpoints that take credentials or create accounts also take `.RequireRateLimiting(RateLimitPolicies.Auth)` (plan P28).
 - Every endpoint declares its responses so the OpenAPI client is accurate: typed results describe the success, and
   `ProducesValidationProblem()` / `ProducesProblem(...)` the errors (429 too, when rate-limited).
@@ -112,19 +114,29 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 ## 5. Authorization pattern
 
 ```csharp
-// endpoint: role-level
+// endpoint: role-level (Policies, API) → 403
 group.MapPost("/{id:guid}/assign", Assign).RequireAuthorization(Policies.CanAssignWorkOrders);
 
-// handler: record-level
+// handler: record-level (IResourceAuthorizer, Application) → 404
 var wo = await db.WorkOrders.FirstOrDefaultAsync(w => w.Id == cmd.Id, ct);
-if (wo is null || !(await authz.AuthorizeAsync(user, wo, WorkOrderOps.Assign)).Succeeded)
+if (wo is null || !await authz.IsAllowedAsync(wo, WorkOrderOps.Assign, ct))
     return Result.NotFound();
 
-// lists
+// lists and details
 var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsync(page, ct);
 ```
 
 - Write checks against operations (`WorkOrderOps.*`), not scattered `IsInRole` calls.
+- **Role policies** are the `Policies` catalog (API): one set of roles per policy, Admin listed wherever Manager is.
+  `OrganizationRoleHandler` checks them against `ICurrentUser.Roles`, so none passes without an organization context.
+  A slice that needs a new policy adds it there and its row to `RolePolicyTests`. Never `RequireRole` or
+  `Authorize(Roles = ...)`, which read the principal.
+- **Record checks** stay out of ASP.NET Core (plan P34): one `IResourceAuthorizationHandler<T>` per resource, found by
+  assembly scan, reads the caller from `ICurrentUser` (and `IFixFlowDbContext` for lookups such as a tenant's units)
+  and denies operations it doesn't know. `IResourceAuthorizer` refuses without an organization context or a role (a
+  trusted scope too) and throws when a resource has no handler.
+- **`VisibleTo(this IQueryable<T>, ICurrentUser)`** in `<Entity>QueryExtensions`: a `switch` on roles that ends in
+  `Where(_ => false)`. Detail reads load through it too, so viewing is no operation of the handler.
 - Tenant-facing responses use separate DTOs without internal fields.
 
 ### Organization context (memberships)
@@ -149,12 +161,14 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   or repeated header → 400; any miss → a bare 404; an anonymous caller passes through to the 401.
 - Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`
   (`OrganizationId`, `Roles`). Never read them from `User` entities, request bodies or route values. `Roles` is empty
-  without an organization context and while a trusted scope is open.
+  without an organization context and while a trusted scope is open. `HttpCurrentUser` reads both only from the
+  organization context's identity (`OrganizationContext.AuthenticationType`): the cookie's identity carries the claims
+  stored with the account.
 - Every endpoint under `/api/v1` needs an organization: `MapFixFlowApi` puts `.RequireOrganization()` on the root
   group. Organization-less endpoints (`/me*`, auth, `POST /organizations`, T3.2's invite lookup and acceptance) call
   `.WithoutOrganization()` on their group or themselves (the last metadata wins), get no context even when the header
   is sent, and must not touch organization-owned data, except through a trusted scope.
-  `OrganizationContextCoverageTests` holds them to an allow-list, so a new one is added there deliberately.
+  `EndpointCoverageTests` holds them to an allow-list, so a new one is added there deliberately.
 - Change memberships only through the `OrganizationMembership` aggregate. Its events drop the user's tag
   `user:{userId}:memberships` after the commit (plan P33); a raw SQL or bulk update would stay cached for up to 60 s.
 - A `HybridCache` factory that uses scoped services (the DbContext) is called with `CancellationToken.None`. It runs on
@@ -210,11 +224,14 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
 - Cross-tenant (`CrossTenantExtensions`): `using var orgs = await api.TwoOrganizationsAsync()` gives `orgs.A` and
   `orgs.B`, each with its `Id`, `Slug` and a signed-in client per role (`Admin`, `Manager`, `Technician`, `Tenant`, or
-  `As(role)` with `TestData.EveryRole`) that already sends its own slug. `api.AddMemberAsync(orgId, roles)` adds a
+  `As(role)` with `TestData.EveryRole`) that already sends its own slug; `api.OrganizationWithEveryRoleAsync()` gives
+  one such organization. `api.AddMemberAsync(orgId, roles)` adds a
   signed-out `TestMember`, `api.MemberOfBothAsync(a, rolesInA, b, rolesInB)` one with different roles per organization,
   and `api.SignInAsync(member)` signs one in. For a mismatched header, `.WithOrganization(otherSlug)` on a request
   replaces the client's. Suspend or change roles through the aggregate with `api.ChangeMembershipAsync`, so the cache is
   invalidated as in production.
+- Role policies: `RolePolicyTests` checks each one for every role through `PolicyTestEndpoints`. An endpoint's own
+  tests add a member without its role → 403 (`ReadProblemAsync(HttpStatusCode.Forbidden)`).
 - Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
   resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
 - The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.
