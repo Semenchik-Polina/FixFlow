@@ -1,4 +1,5 @@
 using System.Reflection;
+using FixFlow.Application.Auth;
 using FixFlow.Application.Events;
 using FixFlow.Application.Organizations;
 using FixFlow.Application.Organizations.Context;
@@ -15,8 +16,8 @@ public static class ServiceCollectionExtensions
         [typeof(IInTransactionEventHandler<>), typeof(IPostCommitEventHandler<>)];
 
     /// <summary>
-    /// MediatR handlers with the validation pipeline, the FluentValidation validators, the domain event handlers and
-    /// the services that handlers share.
+    /// MediatR handlers with the validation pipeline, the FluentValidation validators, the domain event handlers, the
+    /// resource authorization handlers and the services that handlers share.
     /// </summary>
     public static IServiceCollection AddFixFlowApplication(this IServiceCollection services)
     {
@@ -28,6 +29,8 @@ public static class ServiceCollectionExtensions
             .AddOpenBehavior(typeof(ValidationBehavior<,>)));
         services.AddValidatorsFromAssembly(ApplicationAssembly.Instance, includeInternalTypes: true);
         services.AddDomainEventHandlers(ApplicationAssembly.Instance);
+        services.AddResourceAuthorizationHandlers(ApplicationAssembly.Instance);
+        services.AddScoped<IResourceAuthorizer, ResourceAuthorizer>();
 
         services.AddScoped<OrganizationCreator>();
         // Needs a HybridCache, which the host registers (Infrastructure's AddFixFlowCaching)
@@ -43,22 +46,36 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddDomainEventHandlers(this IServiceCollection services, Assembly assembly)
     {
-        var handlers = assembly
-            .GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false });
-
-        foreach (var handler in handlers)
+        foreach (var (serviceType, handler) in Implementations(assembly, _eventHandlerInterfaces))
         {
-            var handled = handler
-                .GetInterfaces()
-                .Where(i => i.IsGenericType && _eventHandlerInterfaces.Contains(i.GetGenericTypeDefinition()));
-
-            foreach (var serviceType in handled)
-            {
-                services.TryAddEnumerable(ServiceDescriptor.Transient(serviceType, handler));
-            }
+            services.TryAddEnumerable(ServiceDescriptor.Transient(serviceType, handler));
         }
 
         return services;
     }
+
+    /// <summary>
+    /// Registers every class in the assembly that implements <see cref="IResourceAuthorizationHandler{TResource}"/>, for
+    /// <see cref="IResourceAuthorizer"/>. Scoped, like the current user and the DbContext they read.
+    /// </summary>
+    public static IServiceCollection AddResourceAuthorizationHandlers(this IServiceCollection services, Assembly assembly)
+    {
+        foreach (var (serviceType, handler) in Implementations(assembly, typeof(IResourceAuthorizationHandler<>)))
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Scoped(serviceType, handler));
+        }
+
+        return services;
+    }
+
+    /// <summary>The closed interfaces of <paramref name="openInterfaces"/> that the assembly's classes implement.</summary>
+    private static IEnumerable<(Type ServiceType, Type Implementation)> Implementations(
+        Assembly assembly, params Type[] openInterfaces) =>
+        assembly
+            .GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false })
+            .SelectMany(type => type
+                .GetInterfaces()
+                .Where(i => i.IsGenericType && openInterfaces.Contains(i.GetGenericTypeDefinition()))
+                .Select(i => (i, type)));
 }
