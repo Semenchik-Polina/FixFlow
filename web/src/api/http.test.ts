@@ -148,15 +148,19 @@ describe('http: errors', () => {
     expect(redirectToLogin).toHaveBeenCalledOnce();
   });
 
-  it('stays on the login page on 401 there', async () => {
-    openPage('/login');
-    answer(401, JSON.stringify({ status: 401, title: 'Unauthorized' }), 'application/problem+json');
+  // The router renders the login page at /login/ and /LOGIN too, and a reload there would clear the form
+  it.each(['/login', '/login/', '/LOGIN', '/signup', '/reset-password'])(
+    'stays on the public page %s on 401',
+    async (path) => {
+      openPage(path);
+      answer(401, JSON.stringify({ status: 401, title: 'Unauthorized' }), 'application/problem+json');
 
-    const error = await rejectionOf(http(PROBE));
+      const error = await rejectionOf(http(PROBE));
 
-    expect(error.status).toBe(401);
-    expect(redirectToLogin).not.toHaveBeenCalled();
-  });
+      expect(error.status).toBe(401);
+      expect(redirectToLogin).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not leave the page on 403', async () => {
     openPage('/acme/requests');

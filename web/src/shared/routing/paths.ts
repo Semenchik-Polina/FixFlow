@@ -1,3 +1,5 @@
+import { matchPath } from 'react-router';
+
 /**
  * Top-level pages that live outside any organization. Every other first path segment is an organization slug
  * (`/{orgSlug}/...`, ARCHITECTURE §8). The router builds the global routes from this list, so the two can't drift.
@@ -6,6 +8,11 @@
  */
 export const globalPaths = {
   login: '/login',
+  signup: '/signup',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
+  organizations: '/organizations',
+  newOrganization: '/organizations/new',
 } as const;
 
 /** The first segment of a path: `'organizations'` for `/organizations/new`, `''` for `/`. */
@@ -25,4 +32,20 @@ export function orgSlugFromPath(pathname: string): string | null {
   }
 
   return segment;
+}
+
+// The pages of a signed-out visitor, which never need a session
+const publicPaths: readonly string[] = [
+  globalPaths.login,
+  globalPaths.signup,
+  globalPaths.forgotPassword,
+  globalPaths.resetPassword,
+];
+
+/**
+ * Whether the page at `pathname` is one for signed-out visitors (sign in, sign up, password reset). It matches the way
+ * the router does, in any case and with or without a trailing slash, so `/LOGIN` and `/login/` are the login page.
+ */
+export function isPublicPage(pathname: string): boolean {
+  return publicPaths.some((path) => matchPath({ path, caseSensitive: false, end: true }, pathname) !== null);
 }

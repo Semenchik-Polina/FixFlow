@@ -14,6 +14,10 @@ export const theme = createTheme({
     fontFamily: ['system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'].join(
       ',',
     ),
+    // The title of a global page (sign in, the organization picker): MUI's default h1 is a 6rem display size
+    h1: { fontSize: '1.75rem', fontWeight: 600, lineHeight: 1.25, letterSpacing: '-0.01em' },
+    // Sentence case everywhere: "Sign in", not "SIGN IN"
+    button: { textTransform: 'none', fontWeight: 600 },
   },
   shape: {
     borderRadius: 8,
