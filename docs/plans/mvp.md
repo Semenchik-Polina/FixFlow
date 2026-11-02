@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T1.8
+**Status:** approved 2026-10-09 · **Next task:** T2.1
 
 ## Context
 
@@ -469,7 +469,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a 401 on `/login/` or `/LOGIN` doesn't redirect
   - Manual checks: two tabs in different orgs work independently; login and signup can be used with the keyboard alone.
 
-- [ ] **T1.8 E2E harness** · M
+- [x] **T1.8 E2E harness** · M
   Scope:
   - Playwright in `tests/web-e2e/` (Chromium, against the `full` profile over HTTPS).
   - Mailpit API helper and fake-data helpers (`*.example.test`).
