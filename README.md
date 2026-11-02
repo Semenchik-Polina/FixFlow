@@ -143,6 +143,17 @@ Frontend, from `web/`:
 npm run lint && npm run typecheck && npm test
 ```
 
+End-to-end, from `tests/web-e2e/`: Playwright (Chromium) against the [full profile](#full-profile-production-like).
+All their requests reach the API from Docker's gateway address, so they share one auth rate-limit budget: set
+`FIXFLOW_AUTH_PERMIT_LIMIT=1000` in `.env` before starting the profile. Each test signs up its own organization and
+reads its mail from Mailpit's API.
+
+```bash
+npm ci && npx playwright install chromium   # once
+npx playwright test
+npx playwright show-report                  # the HTML report, with a trace for each failed test
+```
+
 ## Contributing
 
 - Conventional commits (`feat(work-orders): ...`), short-lived branches off `dev`, squash merge (or a merge commit for

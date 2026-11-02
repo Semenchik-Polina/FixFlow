@@ -18,7 +18,6 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
-# The E2E job is added in T1.8
 jobs:
   backend:
     name: Backend
@@ -161,6 +160,98 @@ jobs:
         run: |
           cp .env.example .env
           docker compose --profile full config --quiet
+
+  # Playwright against the Compose `full` profile over HTTPS (ARCHITECTURE §19, plan T1.8)
+  e2e:
+    name: E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # All requests reach the API from Docker's gateway, so they share one auth rate-limit budget (plan P28)
+      FIXFLOW_AUTH_PERMIT_LIMIT: 1000
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # scripts/dev-cert.sh uses the SDK's dev-certs tool
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: tests/web-e2e/package-lock.json
+
+      # The fast checks first, before the images and the stack
+      - name: Install
+        working-directory: tests/web-e2e
+        run: npm ci
+
+      - name: Audit dependencies
+        working-directory: tests/web-e2e
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        working-directory: tests/web-e2e
+        run: npm run lint
+
+      - name: Type-check
+        working-directory: tests/web-e2e
+        run: npm run typecheck
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Tagged with Compose's image names, so `up --no-build` runs them. Reads the image job's cache; only it writes.
+      - name: Build the migrate image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: migrate
+          load: true
+          tags: fixflow-migrate:local
+          cache-from: type=gha,scope=migrate
+
+      - name: Build the API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: api
+          load: true
+          tags: fixflow-api:local
+          cache-from: type=gha,scope=api
+
+      - name: Export the development certificate
+        run: ./scripts/dev-cert.sh
+
+      - name: Start the full profile
+        run: |
+          cp .env.example .env
+          docker compose --profile full up -d --no-build --wait --wait-timeout 300
+
+      - name: Install Chromium
+        working-directory: tests/web-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the E2E tests
+        working-directory: tests/web-e2e
+        run: npx playwright test
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            tests/web-e2e/playwright-report/
+            tests/web-e2e/test-results/
+          retention-days: 7
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose --profile full logs --no-color
 
   secrets:
     name: Secrets

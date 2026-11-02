@@ -124,6 +124,7 @@ web/src/
   `problem(...)` / `validationProblem(...)` for error answers. Org pages need `givenSignedIn`, or their layout shows
   "Organization not found". A test that depends on the `X-Organization` header needs a browser router, because
   `http.ts` reads the slug from `window.location`.
-- E2E: Playwright in `tests/web-e2e/`, only critical flows (submit → assign → complete → close).
+- E2E: Playwright in `tests/web-e2e/` (its own package; README "Tests"), only critical flows (submit → assign → complete
+  → close). Same locator rules; password fields need `{ exact: true }`, since their "Show password" toggle matches too.
 - Run focused: `npx vitest src/features/work-orders`.
 - Before done: `npm run lint && npm run typecheck && npm test`.

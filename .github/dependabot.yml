@@ -34,6 +34,23 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
+  # The Playwright E2E tests (T1.8); their lint tooling stays on web's versions
+  - package-ecosystem: npm
+    directory: "/tests/web-e2e"
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Same reason as web (plan P16)
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: "/"
     target-branch: dev
