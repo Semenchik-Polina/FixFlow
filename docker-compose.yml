@@ -140,6 +140,8 @@ services:
       Smtp__Security: None
       # Links in emails open the SPA this container serves
       Spa__PublicUrl: https://localhost:8443
+      # Every request reaches the API from Docker's gateway, so the E2E run raises the auth limit (plan P28)
+      RateLimiting__Auth__PermitLimit: ${FIXFLOW_AUTH_PERMIT_LIMIT:-10}
     ports:
       - "127.0.0.1:8443:8443"
     volumes:

@@ -50,7 +50,10 @@ dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-p
 npm run dev
 npm run lint && npm run typecheck && npm test
 npm run gen:api          # regenerate API client after any endpoint/DTO change
-npx playwright test      # E2E, needs `docker compose --profile full up`
+
+# E2E (from tests/web-e2e/): needs the `full` profile up with FIXFLOW_AUTH_PERMIT_LIMIT=1000 (README)
+npm run lint && npm run typecheck
+npx playwright test
 ```
 
 Local UIs: Mailpit http://localhost:8025 · Seq http://localhost:5341 · RabbitMQ http://localhost:15672

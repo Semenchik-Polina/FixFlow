@@ -1,0 +1,5 @@
+playwright-report
+test-results
+package-lock.json
+# Docs follow the repository's Markdown style, not Prettier's
+*.md
