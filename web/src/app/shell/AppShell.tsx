@@ -1,4 +1,3 @@
-import HomeOutlined from '@mui/icons-material/HomeOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -14,41 +13,48 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { useCurrentOrganization } from '../../shared/session/useCurrentOrganization';
 import { strings } from '../../shared/strings';
 import { NavigationProgress } from './NavigationProgress';
+import { visibleNavItems } from './navItems';
+import { OrganizationSwitcher } from './OrganizationSwitcher';
+import { UserMenu } from './UserMenu';
 
 const DRAWER_WIDTH = 240;
 
-// Relative to the organization (/:orgSlug). Role-based items come with the auth shell (plan T1.7).
-const navItems = [{ to: '.', label: strings.shell.home, Icon: HomeOutlined }];
-
 /**
- * The layout of every organization page: app bar, navigation and the page. Mobile-first: below `md` the navigation
- * is a drawer behind a menu button.
+ * The layout of every organization page: app bar (the organization and its switcher, the user's menu), navigation
+ * for the user's roles, and the page. Mobile-first: below `md` the navigation is a drawer behind a menu button, and
+ * below `sm` the wordmark gives its room to the organization's name.
  */
 export function AppShell() {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'), { noSsr: true });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { organizationName, roles } = useCurrentOrganization();
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100dvh' }}>
+      {/* The organization first, so tabs open in different organizations tell apart */}
+      <title>{strings.pageTitle(organizationName)}</title>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
-        <Toolbar>
+        <Toolbar sx={{ gap: 1 }}>
           {!isDesktop && (
             <IconButton
               color="inherit"
               edge="start"
               aria-label={strings.shell.openNavigation}
               onClick={() => setMobileOpen(true)}
-              sx={{ mr: 1 }}
             >
               <MenuIcon />
             </IconButton>
           )}
-          <Typography variant="h6" component="div" noWrap>
+          <Typography variant="h6" component="div" noWrap sx={{ display: { xs: 'none', sm: 'block' }, mr: 2 }}>
             {strings.app.name}
           </Typography>
+          <OrganizationSwitcher />
+          <Box sx={{ flexGrow: 1 }} />
+          <UserMenu />
         </Toolbar>
         <NavigationProgress />
       </AppBar>
@@ -64,7 +70,7 @@ export function AppShell() {
       >
         <Toolbar />
         <List component="nav" aria-label={strings.shell.navigation}>
-          {navItems.map(({ to, label, Icon }) => (
+          {visibleNavItems(roles).map(({ to, label, Icon }) => (
             <ListItemButton
               key={to}
               component={NavLink}
