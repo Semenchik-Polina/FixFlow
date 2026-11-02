@@ -64,7 +64,8 @@ export function createRoutes(queryClient: QueryClient): RouteObject[] {
         },
         {
           path: ':orgSlug',
-          lazy: { Component: async () => (await import('./shell/AppShell')).AppShell },
+          loader: loadSession,
+          lazy: { Component: async () => (await import('./shell/OrganizationLayout')).OrganizationLayout },
           children: [
             {
               index: true,

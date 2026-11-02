@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http as mock } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { redirectToLogin } from '../api/navigation';
@@ -62,17 +62,44 @@ describe('routes: after sign-in', () => {
 
 describe('routes: organization pages', () => {
   it('shows the organization home inside the app shell', async () => {
+    givenSignedIn(aMembership('acme'));
+
     renderRoute('/acme');
 
     expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.getByRole('banner')).toHaveTextContent('FixFlow');
-    expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument();
+    const banner = screen.getByRole('banner');
+    expect(banner).toHaveTextContent('FixFlow');
+    expect(within(banner).getByRole('button', { name: 'Acme, switch organization' })).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe('Acme – FixFlow'));
   });
 
-  it('shows "Page not found" for an unknown organization page', async () => {
+  it('shows "Page not found" for an unknown page of an organization', async () => {
+    givenSignedIn(aMembership('acme'));
+
     renderRoute('/acme/nope');
 
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('banner')).toHaveTextContent('FixFlow');
+  });
+
+  it('shows "Organization not found" for an organization the user is no member of', async () => {
+    givenSignedIn(aMembership('acme'));
+
+    renderRoute('/brightway-homes');
+
+    expect(await screen.findByRole('heading', { name: 'Organization not found' })).toBeInTheDocument();
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Your organizations' })).toHaveAttribute('href', '/organizations');
+  });
+
+  it('offers to try again when the session fails to load', async () => {
+    server.use(mock.get('*/api/v1/me', () => problem(503)));
+
+    renderRoute('/acme');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong on our side');
+    givenSignedIn(aMembership('acme'));
+    screen.getByRole('button', { name: 'Try again' }).click();
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
   });
 });
