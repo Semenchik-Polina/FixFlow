@@ -8,7 +8,7 @@ import { createAppRouter } from './router';
 import { theme } from './theme';
 
 const queryClient = createQueryClient();
-const router = createAppRouter();
+const router = createAppRouter(queryClient);
 
 export function App() {
   return (

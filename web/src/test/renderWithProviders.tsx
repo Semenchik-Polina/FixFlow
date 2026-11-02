@@ -34,6 +34,7 @@ export function renderWithProviders(ui: ReactElement, queryClient: QueryClient =
 
 /** Renders the app's routes at `path`, with the providers. */
 export function renderRoute(path: string) {
-  const router = createMemoryRouter(createRoutes(), { initialEntries: [path] });
-  return { router, ...renderWithProviders(<RouterProvider router={router} />) };
+  const queryClient = createTestQueryClient();
+  const router = createMemoryRouter(createRoutes(queryClient), { initialEntries: [path] });
+  return { router, ...renderWithProviders(<RouterProvider router={router} />, queryClient) };
 }
