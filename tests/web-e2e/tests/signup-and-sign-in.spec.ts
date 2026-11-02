@@ -16,7 +16,7 @@ test('signs up, lands on the new organization, and signs out and back in', async
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page).toHaveURL(`/${account.slug}`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Forced failure' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.getByRole('button', { name: `${account.organizationName}, switch organization` })).toBeVisible();
 
   await signOut(page);
