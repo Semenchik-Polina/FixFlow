@@ -90,6 +90,12 @@ jobs:
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
+      # Here, not in the E2E job, which is the one check `dev` requires: an advisory in the tests' dev tooling
+      # shouldn't block every PR. npm audit reads the lockfile, so it needs no install.
+      - name: Audit the E2E tests' dependencies
+        working-directory: tests/web-e2e
+        run: npm audit --audit-level=high
+
       # The backend job keeps openapi.json in step with the API; this keeps the client in step with openapi.json
       - name: Generate the API client
         run: npm run gen:api
@@ -190,10 +196,6 @@ jobs:
         working-directory: tests/web-e2e
         run: npm ci
 
-      - name: Audit dependencies
-        working-directory: tests/web-e2e
-        run: npm audit --audit-level=high
-
       - name: Lint
         working-directory: tests/web-e2e
         run: npm run lint
@@ -239,8 +241,9 @@ jobs:
         working-directory: tests/web-e2e
         run: npx playwright test
 
+      # Also when the job timeout cancels a hung run, when they matter most
       - name: Upload the Playwright report
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
@@ -249,8 +252,9 @@ jobs:
             tests/web-e2e/test-results/
           retention-days: 7
 
+      # Compose can't read the stack's settings before the start step writes .env
       - name: Compose logs
-        if: failure()
+        if: (failure() || cancelled()) && hashFiles('.env') != ''
         run: docker compose --profile full logs --no-color
 
   secrets:

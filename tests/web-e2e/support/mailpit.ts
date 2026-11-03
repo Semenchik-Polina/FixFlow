@@ -27,12 +27,18 @@ export class Mailpit {
 
   /** The one message to `recipient`. Waits a few seconds for it, since the API sends some mail after it answers. */
   async messageTo(recipient: string): Promise<MailpitMessage> {
+    const search = `api/v1/search?query=${encodeURIComponent(`to:"${recipient}"`)}`;
     let found: SearchResult['messages'] = [];
     await expect
       .poll(
         async () => {
-          found = (await this.get<SearchResult>(`api/v1/search?query=${encodeURIComponent(`to:"${recipient}"`)}`))
-            .messages;
+          // Not get(): the poll retries only a failed matcher, and a throw here would end it at Mailpit's first hiccup
+          const response = await this.api.get(search).catch(() => undefined);
+          if (!response?.ok()) {
+            return 0;
+          }
+
+          found = ((await response.json()) as SearchResult).messages;
           return found.length;
         },
         { message: `mail to ${recipient}`, timeout: 10_000 },
