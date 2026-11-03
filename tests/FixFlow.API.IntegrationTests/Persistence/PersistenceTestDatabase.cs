@@ -2,6 +2,7 @@ using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.IntegrationTests.Persistence.TestModel;
 using FixFlow.Application;
 using FixFlow.Application.Auth;
+using FixFlow.Domain.Organizations;
 using FixFlow.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
@@ -67,6 +68,17 @@ public sealed class PersistenceTestDatabase : IAsyncDisposable
         settings.User = user;
         settings.Clock = clock ?? new FakeClock(FixFlowApiFactory.SharedNow);
         return new PersistenceTestScope(scope);
+    }
+
+    /// <summary>A new organization, saved. Organizations aren't organization-owned, so no context is needed.</summary>
+    /// <param name="slug">A unique one from <see cref="TestData.OrganizationSlug"/> by default.</param>
+    public async Task<Organization> SaveOrganizationAsync(string? slug = null)
+    {
+        await using var scope = CreateScope(TestCurrentUser.WithoutOrganization());
+        var organization = Organization.Create(TestData.Name("Org"), slug ?? TestData.OrganizationSlug());
+        scope.Db.Organizations.Add(organization);
+        await scope.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return organization;
     }
 
     public ValueTask DisposeAsync() => _services.DisposeAsync();

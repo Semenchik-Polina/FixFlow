@@ -17,7 +17,7 @@ public class OwnAccountQueryTests(FixFlowApiFactory api)
     [Fact]
     public async Task OwnMemberships_TwoMembersOfOneOrganization_EachSeesOnlyTheirOwn()
     {
-        var organization = await SaveOrganizationAsync();
+        var organization = await api.Persistence.SaveOrganizationAsync();
         var first = await SaveUserAsync();
         var second = await SaveUserAsync();
         var firstMembership = await SaveMembershipAsync(organization, first);
@@ -31,8 +31,8 @@ public class OwnAccountQueryTests(FixFlowApiFactory api)
     [Fact]
     public async Task OwnMemberships_MemberOfTwoOrganizations_SeesBothWithOrWithoutAContext()
     {
-        var organizationA = await SaveOrganizationAsync();
-        var organizationB = await SaveOrganizationAsync();
+        var organizationA = await api.Persistence.SaveOrganizationAsync();
+        var organizationB = await api.Persistence.SaveOrganizationAsync();
         var user = await SaveUserAsync();
         var inA = await SaveMembershipAsync(organizationA, user);
         var inB = await SaveMembershipAsync(organizationB, user);
@@ -45,7 +45,7 @@ public class OwnAccountQueryTests(FixFlowApiFactory api)
     [Fact]
     public async Task OwnQueries_AnonymousCaller_ReturnNoRows()
     {
-        var organization = await SaveOrganizationAsync();
+        var organization = await api.Persistence.SaveOrganizationAsync();
         var user = await SaveUserAsync();
         await SaveMembershipAsync(organization, user);
 
@@ -79,15 +79,6 @@ public class OwnAccountQueryTests(FixFlowApiFactory api)
         return await scope.Db.OwnAccount.Select(u => u.Id).ToListAsync(_ct);
     }
 
-    private async Task<Organization> SaveOrganizationAsync()
-    {
-        await using var scope = api.Persistence.CreateScope(TestCurrentUser.WithoutOrganization());
-        var organization = Organization.Create(TestData.Name("Org"), TestData.OrganizationSlug());
-        scope.Db.Organizations.Add(organization);
-        await scope.Db.SaveChangesAsync(_ct);
-        return organization;
-    }
-
     private async Task<User> SaveUserAsync()
     {
         // Not organization-owned, so no organization context is needed
@@ -100,7 +91,7 @@ public class OwnAccountQueryTests(FixFlowApiFactory api)
 
     private async Task<OrganizationMembership> SaveMembershipAsync(Organization organization, User user)
     {
-        await using var scope = api.Persistence.CreateScope(new TestCurrentUser(Guid.CreateVersion7(), organization.Id));
+        await using var scope = api.Persistence.CreateScope(TestCurrentUser.InOrganization(organization));
         var membership = OrganizationMembership.Create(user.Id, [Role.Admin], FixFlowApiFactory.SharedNow);
         scope.Db.OrganizationMemberships.Add(membership);
         await scope.Db.SaveChangesAsync(_ct);
