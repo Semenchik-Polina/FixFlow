@@ -1,3 +1,4 @@
+using FixFlow.Application.Email;
 using Microsoft.Extensions.FileProviders;
 
 namespace FixFlow.API.Spa;
@@ -21,9 +22,24 @@ public static class SpaExtensions
     // Paths that look like files never fall back, so a missing asset isn't answered with index.html
     private const string ClientRoutePattern = $"{{*path:nonfile:{ClientRouteConstraint.Name}}}";
 
-    public static IServiceCollection AddFixFlowSpa(this IServiceCollection services) =>
+    /// <summary>
+    /// The client route constraint, and <see cref="ISpaLinks"/> from <see cref="SpaLinkOptions.SectionName"/>. The
+    /// address is checked when the first link is built, so a run that builds none needs no setting.
+    /// </summary>
+    public static IServiceCollection AddFixFlowSpa(this IServiceCollection services)
+    {
         services.Configure<RouteOptions>(options =>
             options.SetParameterPolicy<ClientRouteConstraint>(ClientRouteConstraint.Name));
+
+        services.AddOptions<SpaLinkOptions>()
+            .BindConfiguration(SpaLinkOptions.SectionName)
+            .ValidateDataAnnotations()
+            .Validate(
+                SpaLinkOptions.IsValid, "Spa:PublicUrl must be an absolute http(s) URL without a query or fragment.");
+        services.AddSingleton<ISpaLinks, SpaLinks>();
+
+        return services;
+    }
 
     /// <summary>The SPA's bundle. Register it before authentication: the bundle is public, and the SPA signs in itself.</summary>
     public static IApplicationBuilder UseFixFlowSpaStaticFiles(this WebApplication app)

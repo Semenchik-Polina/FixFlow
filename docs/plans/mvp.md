@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T1.1
+**Status:** approved 2026-10-09 · **Next task:** T2.1
 
 ## Context
 
@@ -26,21 +26,37 @@ decision in the tables below.
 | P3 | **Email confirmation (S4) is deferred to Phase 2.** Signup logs the user straight in. Accepting an invite marks the email as confirmed. Accepted risk while the app runs locally only. | ADR 0003 |
 | P4 | **MediatR is pinned to 12.x** (the last Apache-2.0 line). Dependabot ignores ≥ 13. | ADR 0004 |
 | P5 | **PostgreSQL 18** (pinned to `18.6-trixie`) instead of 16, for support until Nov 2030. Patch updates come through Dependabot; major upgrades are deliberate and follow a documented procedure. Decided 2026-10-11, before T0.3. | ARCHITECTURE §20 |
-| P6 | **Testcontainers reads its image tags from `docker-compose.yml`** (copied to the test output), so the tests can't drift from Compose and a Dependabot image bump runs the integration tests on its own PR. Decided 2026-10-13, in T0.7. | ARCHITECTURE §20 |
+| P6 | **Testcontainers reads its image tags from `docker-compose.yml`** (copied to the test output), so the tests can't drift from Compose and a Dependabot image bump runs the integration tests on its own PR. T1.4 adds Mailpit (P31). Decided 2026-10-13, in T0.7. | ARCHITECTURE §20 |
 | P7 | **`IEmailSender` + `EmailMessage` are defined in Application in T0.7**, without an implementation, so the test factory can swap in the in-memory sink. T1.4 adds the MailKit sender and templates behind the same interface. Decided 2026-10-13. | this plan (T0.7, T1.4) |
 | P8 | **Endpoint modules are registered in DI.** A module implements `IEndpointModule` (prefix + `Map(group)`) and is registered with `AddEndpointModule<T>()`; `MapFixFlowApi()` maps each one under `/api/v1` in its own group. Tests register test-only modules the same way, so they run through the real pipeline. Decided 2026-10-14, in T0.8. | `src/CLAUDE.md` §2 |
 | P9 | **The OpenAPI document is committed** as `src/FixFlow.API/openapi.json`, written by `dotnet build`. PR diffs show contract changes (the generated client's diffs are hidden), CI fails when it is stale, and `gen:api` (T0.10) reads it without building the backend. Decided 2026-10-14. | this plan (T0.8, T0.10) |
 | P10 | **The authentication scheme comes in T0.8; unknown routes need a session.** The fallback policy needs a challenge scheme, so T0.8 registers the Identity cookie schemes (`AddIdentityCookies`, 401/403 instead of redirects). T1.2 builds on them with `AddIdentityCore`, not `AddIdentity` (which would register them again). The fallback policy also covers unmatched routes: anonymous → 401, signed in → 404. Decided 2026-10-14. | this plan (T0.8, T1.2, T0.11) |
-| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. | this plan (T0.8, T0.9) |
+| P11 | **Concurrency conflicts surface as `ConcurrencyConflictException`** (Application → 409). T0.9's DbContext translates EF Core's `DbUpdateConcurrencyException` into it, so the API maps only Domain and Application exceptions. Decided 2026-10-14. Users are the exception (T1.2): a conflict on users only passes through as EF Core's exception, the only one Identity's store turns into `IdentityResult` `ConcurrencyFailure`. | this plan (T0.8, T0.9) |
 | P12 | **Domain event handlers: `IInTransactionEventHandler<TEvent>` and `IPostCommitEventHandler<TEvent>`** (Application), the names ADR 0005 left to T0.9. A small in-house `DomainEventDispatcher` calls them, not MediatR notifications: Domain can't reference MediatR, and MediatR's publisher stops at the first failing handler, while each post-commit handler must run and fail on its own. `AddDomainEventHandlers(assembly)` registers them. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §3 |
 | P13 | **Handlers reach the DbContext through `IFixFlowDbContext`** (Application), because Application can't reference Infrastructure. Application references `Microsoft.EntityFrameworkCore` for it and for `ToPageAsync`. Each slice adds its `DbSet`s to the interface. Decided 2026-10-18, in T0.9. | `src/CLAUDE.md` §4 |
-| P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles, the claims transformation and the middleware. Decided 2026-10-18. | this plan (T0.9, T1.5) |
+| P14 | **`ICurrentUser` arrives minimal in T0.9** (`UserId`, `OrganizationId`), because persistence needs it. `HttpCurrentUser` reads them from the claims; nothing adds the organization claim (`FixFlowClaimTypes.OrganizationId`) until T1.5, so until then no request has an organization context and organization-owned data is neither readable nor writable. T1.5 adds the roles and the middleware, which adds the claims itself, with no claims transformation (P32). Decided 2026-10-18. | this plan (T0.9, T1.5) |
 | P15 | **React 19 instead of React 18.** React 18 has had no release since 18.3.1 (April 2024), while every React 19 line still gets patch releases, and React Router 8 needs React ≥ 19.2.7. With no frontend code yet, switching cost nothing. Decided 2026-10-18, before T0.10. | ARCHITECTURE §5, §16 |
 | P16 | **The OpenAPI document stays 3.1; the API reads numbers strictly.** A spike in T0.10 showed that orval 8 handles 3.1: nullables become `\| null` (nullable references too), enums become string unions, dates become strings, and its MSW 3 mocks compile and run. The spike also showed that the web JSON default (numbers may be sent as strings) makes every number `integer \| string` in the document and `number \| string` in the client, so the API sets `JsonNumberHandling.Strict`; a document test guards it. The generated files' header omits the orval version, so an orval update alone doesn't make the client stale. TypeScript stays on 6.0 until typescript-eslint supports 7 (Dependabot ignores TypeScript majors). Decided 2026-10-19, in T0.10. | this plan (T0.10) |
 | P17 | **`dev` is the integration branch; `main` gets milestones.** Feature PRs are squash-merged into `dev`; a bigger branch whose commits are worth keeping may use a merge commit instead. `dev` merges into `main` at milestones (e.g. the end of T0) with a merge commit, never squash or rebase, so `main` keeps `dev`'s commits and the branches don't diverge. Dependabot version updates target `dev`. Decided 2026-10-20, after T0.10. | ADR 0006 |
 | P18 | **The `full` profile runs the API as Production; a one-shot `migrate` service applies migrations.** The API image is `aspnet:10.0-noble` plus curl for the Compose healthcheck on `/health/ready`, so `--wait` means ready (a chiseled image would need a probe built into the API). Both images run as the base image's non-root `app` user (uid 1654). Migrations come from an EF Core bundle (the Dockerfile's `migrate` target) that `api` waits for, so auto-migration stays Development-only (T0.9). Building the bundle runs `Program` as Development, which requires a database password: the Dockerfile passes a placeholder on that one step. Decided 2026-10-20, in T0.11. | ARCHITECTURE §20 |
 | P19 | **HTTPS in the `full` profile uses the host's ASP.NET Core dev certificate; Azurite stays HTTP.** `scripts/dev-cert.ps1` / `.sh` trust it and export it to the untracked `certs/` as PEM without a password, so `.env` holds no cert secret; the API serves https://localhost:8443 with it. Browser-facing SAS URLs use `Blob:PublicEndpoint` = `http://127.0.0.1:10000/devstoreaccount1`. Loopback is a potentially trustworthy origin, so an https page may call it without mixed-content blocking (Chromium, Firefox). It is also the host that `UseDevelopmentStorage=true` gives on the host, so dev and `full` need one Azurite CORS entry (T4.2) and one CSP entry (T9.1). The API reaches Azurite as `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite`, so no account key is written down. Decided 2026-10-20, in T0.11. | this plan (T0.11, T4.2, T9.1) |
 | P20 | **Failed post-commit handlers are logged with types and stack traces, but no exception messages.** Messages can hold personal data, and log masking doesn't reach exceptions. An exception that implements `ILogSafeMessage` keeps its message; a few well-known exceptions keep safe fields (socket error code, HTTP status, SQL state). Development logs exceptions as thrown. Decided 2026-10-22, after the review of `dev`. | ADR 0007 (T1.4) |
+| P21 | **Slugs: 3–40 characters, `a-z`, `0-9` and single hyphens, starting and ending with a letter or digit, taken as written (never lowercased).** Slugs never change (A10), so the reserved list looks ahead. Besides today's SPA global paths and the server paths (`api`, `health`, `hubs`, plus `assets`, the SPA bundle's folder), it holds the global pages later tasks will add: `signup`, `forgot-password`, `reset-password`, `invite`, `account`, `organizations`, `new`, and Phase 2's `confirm-email` (ADR 0003). T1.7 and T3.4 name their pages from this list. A domain test checks that `paths.ts` stays inside it. Uniqueness is the database's job: the unique index (T1.2) and a 422 field error at signup (T1.3). Decided 2026-10-23, in T1.1. | `OrganizationSlug` (T1.1) |
+| P22 | **`User` lives in Application, and its username is its id.** `User : IdentityUser<Guid>` comes from `Microsoft.Extensions.Identity.Stores` (no ASP.NET Core dependency), so handlers can project user columns and use `UserManager<User>`. Identity's store and options are in Infrastructure; `SignInManager` is in API. `IFixFlowDbContext` has no unfiltered set of users: users have no organization filter, so slices add queries scoped to the organization (through its memberships) or to the caller's own account. A model test keeps the interface to organization-owned sets plus `Organizations`. The username is the id, not the email: Identity puts it into the principal's name claim, where an email could reach the logs (S26). Sign-in finds the user by email. Decided 2026-10-23, in T1.2; the options considered are in `docs/plans/t1.2-identity-persistence.md`. | `src/CLAUDE.md` §5 |
+| P23 | **Enums are stored as their names** (`text`), by a convention in `FixFlowDbContext.ConfigureConventions`: readable in SQL and in partial indexes (§10), and reordering an enum's members can't change stored data. A model test checks every enum column. Decided 2026-10-23, in T1.2. | `src/CLAUDE.md` §4 |
+| P24 | **Data Protection keys live in a configured folder** (`DataProtection:KeysPath`). The `full` profile mounts the named volume `api-data-protection` there, so recreating the container signs no one out, and Phase 2's replicas on the same host share the keys. Unset (the API on the host, tests), the framework's default folder applies. `SetApplicationName("FixFlow")` ties every instance to one key ring. A named volume lives on one Docker host, so hosting on several machines needs a shared store (PostgreSQL through `PersistKeysToDbContext`, blob storage, or a network share), chosen with hosting at the end of Phase 2. The keys aren't encrypted at rest in the container, which is accepted while FixFlow runs locally only. Decided 2026-10-25, in T1.2. PostgreSQL was chosen first (2026-10-23), then dropped for the smaller change: it needed a package, a table and a second DbContext. | `AddFixFlowDataProtection` (T1.2) |
+| P25 | **A trusted organization scope gives a request an organization context that the server derived.** `ITrustedOrganizationScope.Open(organizationId)` (Application) returns an `IDisposable`. While it is open, `ICurrentUser.OrganizationId` returns that id, so the ownership interceptor, the query filters and the audit stamps work unchanged. It takes only an id the server derived itself (the organization it just created, an invite's organization), never one from the request, and only when the caller has no organization context: `Open` throws otherwise. The scope stays open through the commit, so post-commit handlers run in it too. `TrustedOrganizationScope` (API) is a class of its own that `HttpCurrentUser` reads, so casting `ICurrentUser` can't open one, and an architecture test allow-lists the types that take it (signup and `POST /organizations`; T3.2 adds invite acceptance). Moved here from T1.5. Decided 2026-10-25, in T1.3; the options considered are in `docs/plans/t1.3-signup-login.md`. | `src/CLAUDE.md` §5 |
+| P26 | **The auth flow: MediatR handlers with an `IAuthSession` port, a 422 for any failed login, and `rememberMe` for the cookie's lifetime.** Handlers use `UserManager<User>` directly and sign in through `IAuthSession` (Application), which API implements with `SignInManager<User>` (P22), so endpoints stay thin. A wrong password, an unknown email and a locked-out account get the same 422 with one fixed detail, never a 401: the SPA's 401 → `/login` redirect leaves login forms alone, and a lockout doesn't reveal that the account exists. An unknown email still hashes the password. `rememberMe: true` gives Identity's persistent cookie (14 days, sliding), false a session cookie; signup signs in with a session cookie. Signup needs an anonymous caller (422 otherwise), so `CreatedBy` never credits another user; a signed-in user creates more organizations with `POST /organizations`. Decided 2026-10-25, in T1.3. | this plan (T1.3, T1.7) |
+| P27 | **Unique violations surface as `UniqueConstraintViolationException`** (Application), with the constraint's name, the way concurrency does (P11): `WriteAsync` translates PostgreSQL's `23505`. A handler maps its own constraints (`UniqueIndexes`, whose names the configurations give their indexes) to `Result.FieldError`; any other constraint stays a 500, because it is a bug. Identity's `DuplicateEmail` and a lost race on the email index give the same 422. Decided 2026-10-25, in T1.3. | `src/CLAUDE.md` §2 |
+| P28 | **Login and signup are rate-limited** (S6). Signup is limited too: a taken email gives a 422, and it could be used to spam organizations. One `auth` policy on the built-in in-memory limiter (D14): a fixed window with no queue, one budget per endpoint and client address, 10 requests a minute by default (`RateLimiting:Auth`). The client address is the IPv4 address (an IPv4-mapped IPv6 address counts as IPv4) or the /64 prefix of an IPv6 address, which a client usually controls whole. A rejected request gets a 429 Problem Details with `Retry-After`. TestServer has no client address, so each test client sends its own /64 of `2001:db8::/32` through a test-only header. T1.4 adds forgot and reset password, and the password change (P29). T1.8's E2E run raises the limit, because all its traffic comes from Docker's gateway; Phase 2's proxy needs forwarded headers. Decided 2026-10-25, in T1.3. | ARCHITECTURE §15, S6 |
+| P29 | **A password reset or change ends the user's other sessions on their next request, and reset links expire by `IClock`.** The security stamp is validated on every request (`SecurityStampValidatorOptions.ValidationInterval = 0`), as T1.5's suspension needs too; the cost is one user lookup per signed-in request. A matching stamp re-issues nothing (`NonRenewingSecurityStampValidator`), so a slow response can't put back an old stamp after a change. Reset tokens come from our own `PasswordResetTokenProvider`, which mirrors Identity's `DataProtectorTokenProvider` but reads `IClock`, so `FakeClock` tests pin the one-hour boundary (S4). A reset changes the stamp, so a token works once and voids every other outstanding one. A successful reset clears the lockout, because the owner proved control of the inbox. Changing the password checks the current one through login's row-locked path with `lockoutOnFailure`, so guesses from a stolen session count toward the lockout. It is rate-limited like login, and it refreshes the caller's own session, which keeps its persistence. Decided 2026-10-26, in T1.4; the details are in `docs/plans/t1.4-password-reset-profile.md`. | ARCHITECTURE S4, S6 |
+| P30 | **Email goes out through MailKit, with C# templates and links built from configuration.** `MailKitEmailSender` (Infrastructure) opens a new SMTP connection per send and rethrows every MailKit failure as `EmailDeliveryException` (Application, `ILogSafeMessage`). Its message names the kind of failure (connect, TLS, authentication, command, protocol, timeout, an unsupported extension) and, when the server answered, its status and error code, never the server's text or the address; the original is the inner exception. Recipients are bare addresses only: the email rule rejects `Name <address>`, and the sender refuses it. Templates are C# (`EmailLayout`, which HTML-encodes every value), with one factory per email next to its use case (D27). Links come from `Spa:PublicUrl` (`ISpaLinks`), never from the request's `Host`, which would allow password-reset poisoning; tokens travel in the fragment (A11). `EmailMessage` prints only its subject. Forgot-password sends inline and catches every failure but cancellation: it logs `IExceptionRedactor.ForLog(exception)`, which extends ADR 0007 to failures a handler catches, and still answers 202. Decided 2026-10-26, in T1.4. | ADR 0007, `src/CLAUDE.md` §7 |
+| P31 | **Settings without a safe default are validated on first use; settings with one, at startup.** `SmtpOptions` and `SpaLinkOptions` use `ValidateDataAnnotations()` without `ValidateOnStart`, and the health checks take their connection strings through a `Func<IServiceProvider, string>`, so the build-time OpenAPI run needs no settings and `Program.cs` checks `BuildTimeDocument.IsGenerating` only around the dev auto-migration. A wrong setting shows up at its first use: for SMTP, the first send, which forgot-password logs while it still answers 202. Settings with defaults (rate limits) keep `ValidateOnStart`. The SMTP tests run Mailpit through Testcontainers from Compose's tag (P6): a normal instance, one whose chaos triggers reject every recipient with 550, and a closed port for a server that is down. Decided 2026-10-26, in T1.4. | `src/CLAUDE.md` §8 |
+| P32 | **The organization context is a middleware that adds an identity, and every `/api/v1` endpoint needs one unless it is marked organization-less.** `OrganizationContextMiddleware` runs after `UseAuthentication`. It adds a `ClaimsIdentity` with `fixflow:organization_id` and one `fixflow:role` claim per role, which is that identity's role claim type, so `IsInRole` and `RequireRole` see the request's organization only. There is no `IClaimsTransformation`: authentication runs it before it sets `User`, and the membership lookup reads the user. Nothing reaches the cookie. `MapFixFlowApi` puts `.RequireOrganization()` on the root group, and a module or endpoint opts out with `.WithoutOrganization()` (the last metadata wins); a coverage test holds the organization-less set to an allow-list. Anonymous callers pass through to authorization's 401, so they can't probe for slugs. A missing, empty or repeated `X-Organization` header is a 400 Problem Details. Every miss (an unknown, invalid or foreign slug, a suspended membership) is one bare 404. The lookup goes through `HybridCache` (60 s, key `membership:{userId}:{slug}`, tag `user:{userId}:memberships`) and caches misses too. It is called with `CancellationToken.None`, because its factory runs on the DbContext of the request that started it, which other requests join. `HttpCurrentUser` takes the request's `HttpContext` when it is created, since a factory called with a cancellable token runs without the caller's `ExecutionContext`, and drops it when the request's scope ends. Policies must not set `AuthenticationSchemes`, which would rebuild `User` without the organization's identity. Decided 2026-10-28, in T1.5; the details are in `docs/plans/t1.5-organization-context.md`. | ARCHITECTURE §8, `src/CLAUDE.md` §5 |
+| P33 | **Membership changes invalidate the membership cache through domain events, after the commit.** `OrganizationMembership` raises `MembershipCreated`, `MembershipRolesChanged` (only when the set changed), `MembershipSuspended` and `MembershipReactivated`, each with the membership's and the user's ids; separate events serve T9.2's audit log. One post-commit handler (`InvalidateMembershipCacheHandler`) drops the user's tag, so the change applies from the user's next request, and no endpoint handler has to remember to invalidate. Creation invalidates too, because misses are cached. The 60 s expiration is only a safety net (R15). The in-process cache (A7) invalidates per instance, so Phase 2's replicas need Redis as L2. Decided 2026-10-28, in T1.5. | `src/CLAUDE.md` §5 |
+| P34 | **Two authorization layers: role policies at the endpoint, in-house record checks in the handler.** The endpoint layer is the `Policies` catalog (API): six named policies (`CanManageOrganization`, `CanManageMembers`, `CanManageProperties`, `CanSubmitRequests`, `CanTriageRequests`, `CanWorkOnJobs`), each a set of roles, with Admin listed wherever Manager is. One `OrganizationRoleHandler` checks them against `ICurrentUser.Roles`, never `IsInRole`/`RequireRole`, so no role policy passes without an organization context (403); later slices add their policies. The record layer stays out of ASP.NET Core, so Application keeps no `Microsoft.AspNetCore.*` reference and handlers need no `ClaimsPrincipal`: a handler asks `IResourceAuthorizer.IsAllowedAsync(record, Operation)`, which refuses without an organization context or a role (a trusted scope too) and otherwise asks the resource's one `IResourceAuthorizationHandler<T>` (a missing one throws); a no becomes `Result.NotFound()`. Reads load through `VisibleTo(user)`, so viewing is no operation. `EndpointCoverageTests` holds every endpoint to S7: an allow-listed `AllowAnonymous` or `RequireAuthorization`, a role policy on every organization endpoint and on no organization-less one, and no schemes or roles in endpoint metadata. `HttpCurrentUser` reads the organization and roles only from the organization context's identity: the cookie's carries the account's stored claims. Decided 2026-10-31, in T1.6; the details are in `docs/plans/t1.6-authorization.md`. | ARCHITECTURE §8, `src/CLAUDE.md` §5 |
+| P35 | **One query client per organization in the SPA; signed-out pages never redirect on 401.** `http.ts` reads `X-Organization` from the URL when a request starts, and during a switch the old organization's page is still mounted after the URL changed. So the `/:orgSlug` layout renders `OrganizationQueryScope` keyed by the slug: each organization gets a new `QueryClient` (the global client's defaults), and the old one, once unmounted, is read by nothing. Its in-flight requests are aborted with their pages, and a refetch it starts during the switch lands only in it. Generated hooks, keys and `useQueryClient()` invalidations stay as orval makes them; switching back to an organization starts with an empty cache. Only `/me` lives in the global client, and `useCurrentUser()` (`shared/session`) always reads it from there. Prefixing every key with the slug was the alternative: it keeps the cache warm across switches, but every later slice would have to prefix its keys and invalidations, and one miss is a cross-org bug. A 401 redirects to `/login` except on the signed-out pages (`isPublicPage`, matched like the router: any case, trailing slash), which never call `/me`. Forms use `zod/mini` (≈ 45 kB gzipped less than `zod` on every form page). Decided 2026-11-02, in T1.7; the details are in `docs/plans/t1.7-auth-shell-ui.md`. | `web/CLAUDE.md` §5, §6 |
+| P36 | **The E2E tests are their own npm package in `tests/web-e2e/`, and run against the `full` profile with only the auth limit raised.** Specs outside `web/` can't resolve its `node_modules`, and its lint and type-check only see `web/`, so the package has its own Playwright and copies `web`'s lint tooling at the same versions (type-checked rules catch a missing `await`). Chromium ignores certificate errors: the traffic is still TLS with the dev certificate (P19), but on Linux `dev-certs --trust` reaches Chromium's store only on a best-effort basis, and this keeps local runs and CI identical. `FIXFLOW_AUTH_PERMIT_LIMIT` (default 10) sets the `full` profile's auth limit; the E2E run sets 1000 (P28). Tests whose subject isn't signup sign up through the API with Playwright's `request`, which has its own cookies, so the page starts signed out. Fake data and Mailpit reads mirror the integration tests' `TestData` and `MailpitApi` (by recipient only). `retries: 0` on 2 workers, so a flaky test fails the run. CI builds the images from the `image` job's cache and starts Compose with `--no-build`. Decided 2026-11-02, in T1.8; the details are in `docs/plans/t1.8-e2e-harness.md`. | README "Tests", `web/CLAUDE.md` §8 |
 
 ## Assumptions (approved with this plan)
 
@@ -66,6 +82,13 @@ If one turns out wrong, change it here, and in its ADR if it has one.
 **Gaps noted, kept as documented (revisit if they cause trouble):**
 - Reassign is only allowed from Assigned (§7). If a technician drops out mid-job, the manager must cancel and re-accept.
 - Self-signup emails stay unverified until Phase 2 (P3).
+- The per-account lockout (S3) can be used as a denial of service: anyone who knows an email can keep that account
+  locked, and the per-IP rate limit doesn't stop many addresses. Revisit in T9.3, and with MFA in Phase 2 (T1.3 plan).
+- One address can be mail-bombed with reset emails from many client addresses: the rate limit is per client address,
+  and there is no per-account throttle. Revisit in T9.3, and when hosting is decided (T1.4 plan).
+- The reset email greets the account's first name, which whoever signed up with the address chose: emails are
+  unverified until Phase 2 (P3), so a FixFlow email can carry text that the inbox's owner never wrote. T3.2's invites
+  carry names the same way. Revisit with email confirmation (T1.4 plan, Review #4).
 - No audit-log UI and no GDPR export/deletion tooling (S24) in the MVP.
 
 ---
@@ -287,7 +310,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
 ## M1 — Accounts & organization context
 
-- [ ] **T1.1 Organization & membership domain** · S
+- [x] **T1.1 Organization & membership domain** · S
   Scope:
   - `Organization`: name, slug rules + reserved list. The reserved list includes every global path of the SPA (`web/src/shared/routing/paths.ts`, e.g. `login`), so no slug can shadow one, plus `api`, `health` and `hubs`, which the API keeps for itself (T0.11). Slugs, like every client route parameter, contain no dots: the SPA fallback treats a dotted last segment as a file name (T0.11).
   - `OrganizationMembership`: Active/Suspended, JoinedAt, at least one role.
@@ -295,15 +318,21 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
 
   DoD: domain tests cover slug validity (format, length, reserved words), role invariants, and suspend/reactivate.
 
-- [ ] **T1.2 Identity & account persistence** · M
+- [x] **T1.2 Identity & account persistence** · M
   Scope:
-  - ASP.NET Core Identity in Infrastructure: `User : IdentityUser<Guid>` with UUIDv7 ids and first/last name.
+  - ASP.NET Core Identity's store in Infrastructure, and `User : IdentityUser<Guid>` in Application (P22), with UUIDv7
+    ids and first/last name.
   - Schemas `identity` and `organizations`, with the §10 unique indexes.
+  - `MembershipRole` is mapped as an owned collection of the membership (`OwnsMany`, key `(membership_id, role)`), so
+    it can only be read through the org-filtered membership. A model test makes isolation the default: every entity
+    type that isn't owned is `IOrganizationOwned` or on a short allow-list of global ones (`Organization`, Identity's
+    tables) (review of T1.1).
   - Password policy (S3); lockout after 5 failed attempts.
   - Cookie (S1) that returns 401/403 instead of redirecting: S1 settings on the T0.8 cookie scheme, which already answers 401/403 (P10).
   - `RequireConfirmedEmail = false` (P3).
   - Data Protection keys: the `full` profile's container keeps them in its own filesystem (a startup warning since
-    T0.11), so recreating it signs everyone out. Persist them, e.g. to a named volume; Phase 2's two replicas need a shared key ring.
+    T0.11), so recreating it signs everyone out. Persist them in a folder on a named volume (P24), which Phase 2's two
+    replicas on one host share.
   - Migration `AddIdentityAndOrganizations`.
 
   DoD:
@@ -313,13 +342,37 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - an anonymous API call → 401 with no redirect
     - user ids are UUIDv7
 
-- [ ] **T1.3 Signup, login, logout, `/me`** · M
+- [x] **T1.3 Signup, login, logout, `/me`** · M
   Scope:
   - `POST /auth/signup`: creates the user, org and Admin membership in one transaction, then signs in.
   - `POST /auth/login`, `POST /auth/logout`.
   - `GET /me`: profile + active memberships with roles.
   - `POST /organizations`: an existing user creates another org.
-  - Rate-limit login (S6).
+  - Rate-limit login and signup (S6). Signup is limited too, because it reveals whether an email has an account.
+  - The trusted organization scope, moved here from T1.5. Signup and `POST /organizations` use it, and later T3.2's
+    invite acceptance. The organization's id is derived on the server, never taken from the body.
+  - Plan: `docs/plans/t1.3-signup-login.md`.
+  - Hand-offs from T1.2:
+    - Login: `FindByEmailAsync`, then `PasswordSignInAsync(user, …, lockoutOnFailure: true)`. The username is the id
+      (P22), and without `lockoutOnFailure` the T1.2 lockout does nothing. An unknown email answers like a wrong
+      password.
+    - Create accounts only with `UserManager.CreateAsync`, never by adding a `User` to the context: the manager sets
+      the normalized email (unique index, lookups), the security stamp and the lockout. After it returns
+      `ConcurrencyFailure`, the scope can't save again (a failed save ends the unit of work).
+    - `UserManager.CreateAsync` saves the whole context, so signup runs in one explicit transaction:
+      1. create the user
+      2. add the organization, then save
+      3. open the trusted organization scope
+      4. add the membership, then save
+      5. commit
+
+      Planning T1.3 changed three things:
+      - the trusted scope moved here from T1.5
+      - the organization and the membership are saved together, because the organization's id exists before the
+        insert
+      - the scope opens first and stays open through the commit, so the post-commit handlers run inside it
+    - A unique violation becomes a 422 field error by its constraint: `ix_users_normalized_email` → `email`,
+      `ix_organizations_slug` → `slug`.
 
   DoD:
   - Integration tests:
@@ -332,7 +385,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - `/me` lists only active memberships
   - Login errors don't reveal whether the email exists.
 
-- [ ] **T1.4 Password reset & profile** · M
+- [x] **T1.4 Password reset & profile** · M
   Scope:
   - `IEmailSender` (MailKit → Mailpit) with templates.
   - The sender catches MailKit failures and rethrows an exception that implements `ILogSafeMessage`, with the original
@@ -346,6 +399,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     take their connection strings through a `Func<IServiceProvider, string>`, like `AddFixFlowPersistence`, and the
     `BuildTimeDocument.IsGenerating` checks around them in `Program.cs` go. Otherwise each new setting needs one
     more check (review of `dev`, 2026-10-21).
+  - Plan: `docs/plans/t1.4-password-reset-profile.md`.
 
   DoD:
   - Integration tests:
@@ -356,14 +410,19 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - rate limit → 429
   - With SMTP down, the call still returns 202 and the failure is logged with the SMTP status, without the address.
 
-- [ ] **T1.5 Organization context & `ICurrentUser`** · L
+- [x] **T1.5 Organization context & `ICurrentUser`** · L
   Scope, per §8:
   - `OrganizationContextMiddleware`: slug → org → the caller's active membership, through `HybridCache` (60 s, tag `user:{userId}:memberships`).
-  - Claims transformation and `ICurrentUser`.
+  - `OrganizationMembership` raises domain events when it is created, its roles change, or it is suspended or
+    reactivated. A post-commit handler invalidates `user:{userId}:memberships`, so no endpoint handler has to
+    remember to (review of T1.1).
+  - Claims transformation and `ICurrentUser`. The middleware adds the claims itself (P32).
   - Every endpoint needs an org unless it is marked org-less (`/auth/*`, `/me*`, `/organizations`, invite lookup/accept).
-  - A trusted org scope for signup and invite acceptance (the org id is derived on the server, never taken from the body).
-  - Each `IgnoreQueryFilters()` (membership resolution, `/me`) carries a comment justifying it.
+    Org-less endpoints get no organization context; otherwise T1.3's trusted scope throws when it opens.
+  - Membership resolution reads through T1.3's `OwnMemberships`. It is the one query that turns off the organization
+    filter, and it carries the comment justifying that.
   - Cross-tenant test helpers: orgs A and B, a user per role, a mismatched header.
+  - Plan: `docs/plans/t1.5-organization-context.md`.
 
   DoD:
   - Integration tests:
@@ -375,17 +434,18 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - A suspension takes effect on the very next request (tag invalidation, no 60 s wait).
   - Application never uses `HttpContext`. OrganizationId appears in the Seq log scope.
 
-- [ ] **T1.6 Authorization framework** · M
+- [x] **T1.6 Authorization framework** · M
   Scope:
   - Named role policies (`CanManageOrganization`, `CanManageProperties`, `CanManageMembers`, `CanSubmitRequests`, `CanTriageRequests`, `CanWorkOnJobs`, …) based on the active org's roles.
   - The operation-requirement + `VisibleTo(user)` pattern.
   - An endpoint-coverage test (S7).
+  - Plan: `docs/plans/t1.6-authorization.md`.
 
   DoD:
   - The coverage test fails for an endpoint without a policy, or with an `AllowAnonymous` that isn't on the list.
   - Policy tests per role. A user who is a Manager in A and a Tenant in B, calling a manager endpoint with `X-Organization: b` → 403.
 
-- [ ] **T1.7 Auth & organization shell UI** · L
+- [x] **T1.7 Auth & organization shell UI** · L
   Scope:
   - Pages: login, signup (slug suggested from the name), forgot password, reset password.
   - `useCurrentUser` and `useCurrentOrganization`.
@@ -409,7 +469,7 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
     - a 401 on `/login/` or `/LOGIN` doesn't redirect
   - Manual checks: two tabs in different orgs work independently; login and signup can be used with the keyboard alone.
 
-- [ ] **T1.8 E2E harness** · M
+- [x] **T1.8 E2E harness** · M
   Scope:
   - Playwright in `tests/web-e2e/` (Chromium, against the `full` profile over HTTPS).
   - Mailpit API helper and fake-data helpers (`*.example.test`).

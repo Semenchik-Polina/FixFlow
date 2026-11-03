@@ -1,4 +1,4 @@
-import { globalPaths, orgSlugFromPath } from '../shared/routing/paths';
+import { isPublicPage, orgSlugFromPath } from '../shared/routing/paths';
 import { ApiError } from './ApiError';
 import { redirectToLogin } from './navigation';
 
@@ -16,7 +16,8 @@ export type ErrorType<_ResponseError> = ApiError;
  * - sends the session cookie; auth is cookie-only, never a token (CLAUDE.md §3.8)
  * - sends `X-Organization` with the slug of the current page URL, and only that: a header passed by the caller is
  *   dropped, and global pages such as /login send none (ARCHITECTURE §8)
- * - rejects with an {@link ApiError} for every error response; a 401 also sends the browser to the login page
+ * - rejects with an {@link ApiError} for every error response; a 401 also sends the browser to the login page, unless
+ *   it already shows a page for signed-out visitors, where reloading would only clear the form
  */
 export async function http<T>(url: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
@@ -30,7 +31,7 @@ export async function http<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(new URL(url, window.location.origin), { ...init, headers, credentials: 'include' });
 
   if (!response.ok) {
-    if (response.status === 401 && window.location.pathname !== globalPaths.login) {
+    if (response.status === 401 && !isPublicPage(window.location.pathname)) {
       redirectToLogin();
     }
 

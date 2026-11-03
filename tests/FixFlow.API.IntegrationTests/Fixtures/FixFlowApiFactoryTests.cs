@@ -1,4 +1,5 @@
 using System.Net;
+using FixFlow.API.RateLimiting;
 using FixFlow.Application.Email;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,37 @@ public class FixFlowApiFactoryTests(FixFlowApiFactory api)
             logEvent.Properties.TryGetValue("RequestPath", out var value)
             && value is ScalarValue { Value: string requestPath }
             && requestPath == path);
+    }
+
+    [Fact]
+    public void CreateApiClient_EachClient_SendsAnAddressInItsOwnSlash64()
+    {
+        using var first = api.CreateApiClient();
+        using var second = api.CreateApiClient();
+
+        var firstAddress = IPAddress.Parse(first.DefaultRequestHeaders
+            .GetValues(WebApplicationFactoryExtensions.ClientAddressHeader).Single());
+        var secondAddress = IPAddress.Parse(second.DefaultRequestHeaders
+            .GetValues(WebApplicationFactoryExtensions.ClientAddressHeader).Single());
+
+        Assert.NotEqual(
+            RateLimitingExtensions.ClientAddressKey(firstAddress),
+            RateLimitingExtensions.ClientAddressKey(secondAddress));
+    }
+
+    [Fact]
+    public async Task ClientAddressHeader_SetsTheConnectionsAddress()
+    {
+        var address = WebApplicationFactoryExtensions.NextClientAddress();
+
+        var withHeader = await api.Server.SendAsync(
+            context => context.Request.Headers[WebApplicationFactoryExtensions.ClientAddressHeader] = address.ToString(),
+            TestContext.Current.CancellationToken);
+        var withoutHeader = await api.Server.SendAsync(_ => { }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(address, withHeader.Connection.RemoteIpAddress);
+        // TestServer's own default, which every client would otherwise share
+        Assert.Null(withoutHeader.Connection.RemoteIpAddress);
     }
 
     [Fact]

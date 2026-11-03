@@ -1,6 +1,6 @@
 namespace FixFlow.Infrastructure.Logging;
 
-/// <summary>How exceptions are logged when a post-commit handler fails (ADR 0007).</summary>
+/// <summary>How <see cref="ExceptionRedactor"/> prepares caught exceptions for logs (ADR 0007).</summary>
 public sealed class ExceptionLoggingOptions
 {
     /// <summary>

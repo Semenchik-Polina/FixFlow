@@ -6,6 +6,8 @@
     <PackageReference Include="MediatR" />
     <!-- Handlers query through IFixFlowDbContext (plan P13) -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- User derives from IdentityUser<Guid>; no ASP.NET Core dependency (plan P22) -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" />
   </ItemGroup>
 
   <ItemGroup>

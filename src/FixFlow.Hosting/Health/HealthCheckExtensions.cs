@@ -12,21 +12,29 @@ public static class HealthCheckExtensions
 
     private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(3);
 
-    /// <summary>Readiness checks for PostgreSQL and Blob Storage.</summary>
+    /// <summary>
+    /// Readiness checks for PostgreSQL and Blob Storage. The connection strings are resolved on the first probe, so a
+    /// run that never probes (the build-time OpenAPI document) needs no settings.
+    /// </summary>
     public static IServiceCollection AddFixFlowHealthChecks(
-        this IServiceCollection services, string postgresConnectionString, string blobConnectionString)
+        this IServiceCollection services,
+        Func<IServiceProvider, string> postgresConnectionString,
+        Func<IServiceProvider, string> blobConnectionString)
     {
         // Its own client, created on first use: a probe shouldn't retry. T4.x can switch to the Infrastructure client.
-        var blobClient = new Lazy<BlobServiceClient>(() =>
-        {
-            var options = new BlobClientOptions();
-            options.Retry.MaxRetries = 0;
-            return new BlobServiceClient(blobConnectionString, options);
-        });
+        BlobServiceClient? blobClient = null;
+        BlobServiceClient BlobClient(IServiceProvider provider) =>
+            LazyInitializer.EnsureInitialized(ref blobClient, () =>
+            {
+                var options = new BlobClientOptions();
+                options.Retry.MaxRetries = 0;
+                return new BlobServiceClient(blobConnectionString(provider), options);
+            });
 
         services.AddHealthChecks()
+            // This overload builds its data source (and pool) once, on the first probe
             .AddNpgSql(postgresConnectionString, name: "postgres", tags: [ReadyTag], timeout: _timeout)
-            .AddAzureBlobStorage(_ => blobClient.Value, name: "blob", tags: [ReadyTag], timeout: _timeout);
+            .AddAzureBlobStorage(BlobClient, name: "blob", tags: [ReadyTag], timeout: _timeout);
 
         return services;
     }

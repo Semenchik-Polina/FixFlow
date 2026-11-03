@@ -10,7 +10,7 @@ Background: `ARCHITECTURE.md` §4, §7–§15.
 | Project | Responsibility | May reference |
 |---|---|---|
 | `FixFlow.Domain` | Entities, value objects, state machines, domain events, domain errors | NodaTime, Stateless only |
-| `FixFlow.Application` | Commands/queries, handlers, validators, authorization handlers, interfaces (`IBlobStorage`, `IEmailSender`, ...) | Domain |
+| `FixFlow.Application` | Commands/queries, handlers, validators, resource authorization handlers, interfaces (`IBlobStorage`, `IEmailSender`, ...) | Domain |
 | `FixFlow.Infrastructure` | EF Core `DbContext`, configurations, migrations, interceptors, Identity stores, Blob, Email, Redis, MassTransit | Application, Domain |
 | `FixFlow.API` | Endpoint mapping, SignalR hubs, auth setup, Problem Details, DI composition, serves SPA in prod | all of the above |
 | `FixFlow.Contracts` | Integration event records shared with workers | nothing |
@@ -32,8 +32,8 @@ FixFlow.Application/WorkOrders/
 │  ├─ AssignTechnicianHandler.cs
 │  └─ AssignTechnicianValidator.cs
 ├─ GetWorkOrders/                     # query + handler + response DTO
-├─ WorkOrderOps.cs                    # OperationAuthorizationRequirement definitions
-├─ WorkOrderAuthorizationHandler.cs
+├─ WorkOrderOps.cs                    # Operation definitions
+├─ WorkOrderAuthorizationHandler.cs   # IResourceAuthorizationHandler<WorkOrder>
 └─ WorkOrderQueryExtensions.cs        # .VisibleTo(user)
 
 FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-orders" → /api/v1/work-orders
@@ -41,15 +41,27 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 
 - A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
   `MapFixFlowApi()` maps it under `/api/v1` in its own group.
-- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToNoContent()` (`ResultExtensions`), which map
-  the handler's `Result` to `TypedResults`. No business logic in endpoints.
+- Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToCreated()` (201, no `Location` until the
+  resource has a GET) / `.ToAccepted()` (202, no `Location`) / `.ToNoContent()` (`ResultExtensions`), which map the
+  handler's `Result` to `TypedResults`. No business logic in endpoints.
 - Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
   `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
   validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.
+- A unique violation is thrown as `UniqueConstraintViolationException` (plan P27). A handler catches it only for its
+  own constraints (`UniqueIndexes`) and returns `Result.FieldError`; any other constraint stays a 500.
 - List queries implement `IPagedQuery`, return `PagedResult<T>`, and their validator derives from
   `PagedQueryValidator<T>` (pageSize ≤ 100).
-- Every endpoint declares `.RequireAuthorization(<policy>)`; anonymous ones use `.AllowAnonymous()` explicitly.
-- Every endpoint declares its responses (`Produces<T>()`, `ProducesProblem(...)`) so the OpenAPI client is accurate.
+- Every endpoint declares its authorization: an organization endpoint `.RequireAuthorization(Policies.<RolePolicy>)`, an
+  organization-less one `.RequireAuthorization()`, an anonymous one `.AllowAnonymous()`. `EndpointCoverageTests` holds
+  them to it, with the anonymous allow-list (S7).
+  Endpoints that take credentials or create accounts also take `.RequireRateLimiting(RateLimitPolicies.Auth)` (plan P28).
+- Every endpoint declares its responses so the OpenAPI client is accurate: typed results describe the success, and
+  `ProducesValidationProblem()` / `ProducesProblem(...)` the errors (429 too, when rate-limited).
+- Every endpoint names its operation with `.WithName("GetMe")`, so orval generates `useGetMe`, not a name built
+  from the path.
+- `dotnet build` writes the OpenAPI document to `FixFlow.API/openapi.json`, which the SPA's client is generated from.
+  After an endpoint or DTO change, commit it, then run `npm run gen:api` in `web/` and commit the client too; CI fails
+  when either is stale.
 
 ---
 
@@ -62,7 +74,8 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   domain event. Allowed transitions/roles: `ARCHITECTURE.md` §7.
 - Business rule violations throw `DomainException` (mapped to **422** Problem Details);
   concurrency conflicts map to **409**; not found / not authorized to see → **404**.
-- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`.
+- Entities derive from `Entity` (UUIDv7 `Id`), aggregates from `AggregateRoot`. An aggregate's owned child type
+  (`MembershipRole`) has no id of its own: its owner and its value are its key.
 - Domain events: past-tense `IDomainEvent` records (`WorkOrderAssigned`), raised with `Raise(...)` on the aggregate,
   dispatched in two phases during `SaveChangesAsync` (ADR 0005, plan P12):
   - **in-transaction** handlers (`IInTransactionEventHandler<TEvent>`) keep other aggregates consistent (WO Closed →
@@ -80,6 +93,7 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 - Entity configuration in `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` (`IEntityTypeConfiguration<T>`).
   No data annotations on domain entities.
 - snake_case naming for tables/columns (`UseSnakeCaseNamingConvention()`).
+- Enums are stored as their names (`text`), by convention (plan P23).
 - Conventions come from marker interfaces (Domain); configurations don't repeat them:
   - `IOrganizationOwned`: `OrganizationId` set on insert from `ICurrentUser`, writes for another org throw, and the
     `QueryFilters.Organization` filter;
@@ -94,6 +108,7 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 
 - Name migrations by intent: `AddWorkOrderSlaDueAt`, not `Update3`.
 - After adding, review the SQL: `dotnet ef migrations script --idempotent` (only the new part).
+- A model change without a migration fails `Migrations_CoverTheModel`.
 - Never edit or delete a migration that is already merged; add a corrective one.
 - Don't read `*.Designer.cs` or `*ModelSnapshot.cs` — they're generated.
 
@@ -102,32 +117,73 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 ## 5. Authorization pattern
 
 ```csharp
-// endpoint: role-level
-group.MapPost("/{id:guid}/assign", Assign).RequireAuthorization(Policies.CanAssignWorkOrders);
+// endpoint: role-level (Policies, API) → 403
+group.MapPost("/{id:guid}/start", Start).RequireAuthorization(Policies.CanWorkOnJobs);
 
-// handler: record-level
-var wo = await db.WorkOrders.FirstOrDefaultAsync(w => w.Id == cmd.Id, ct);
-if (wo is null || !(await authz.AuthorizeAsync(user, wo, WorkOrderOps.Assign)).Succeeded)
+// handler: record-level (IResourceAuthorizer, Application) → 404. Load through VisibleTo, so a record the caller
+// can't see is a 404 before any operation check
+var wo = await db.WorkOrders.VisibleTo(user).FirstOrDefaultAsync(w => w.Id == cmd.Id, ct);
+if (wo is null || !await authz.IsAllowedAsync(wo, WorkOrderOps.Start, ct))
     return Result.NotFound();
 
-// lists
+// lists and details
 var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsync(page, ct);
 ```
 
 - Write checks against operations (`WorkOrderOps.*`), not scattered `IsInRole` calls.
+- **Role policies** are the `Policies` catalog (API): one set of roles per policy, Admin listed wherever Manager is.
+  `OrganizationRoleHandler` checks them against `ICurrentUser.Roles`, so none passes without an organization context.
+  A slice that needs a new policy adds it there and its row to `RolePolicyTests`. Never `RequireRole` or
+  `Authorize(Roles = ...)`, which read the principal.
+- **Record checks** stay out of ASP.NET Core (plan P34): one `IResourceAuthorizationHandler<T>` per resource, found by
+  assembly scan, reads the caller from `ICurrentUser` (and `IFixFlowDbContext` for lookups such as a tenant's units)
+  and denies operations it doesn't know. `IResourceAuthorizer` refuses without an organization context or a role (a
+  trusted scope too) and throws when a resource has no handler.
+- **`VisibleTo(this IQueryable<T>, ICurrentUser)`** in `<Entity>QueryExtensions`: a `switch` on roles that ends in
+  `Where(_ => false)`. Detail reads load through it too, so viewing is no operation of the handler.
 - Tenant-facing responses use separate DTOs without internal fields.
 
 ### Organization context (memberships)
 
 - `User` is global; access to an organization is an `OrganizationMembership` (Active/Suspended) with `MembershipRole`s.
-- `OrganizationContextMiddleware` (Api) reads `X-Organization: {slug}`, loads the user's **active** membership
-  (via `HybridCache`, key `membership:{userId}:{slug}`), returns **404** if none, and an `IClaimsTransformation`
-  adds `OrganizationId` + that membership's roles to the principal.
-- Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`.
-  Never read them from `User` entities, request bodies or route values.
-- Organization-less endpoints (`/api/v1/me*`, auth) are explicitly marked and must not touch organization-owned data.
-- Any change to memberships/roles must invalidate the tag `user:{userId}:memberships`.
-- SignalR hub validates `?org={slug}` the same way on connect.
+- `User` (Application) has no organization filter, so `IFixFlowDbContext` has no set of users: reach other users only
+  through queries scoped to the organization (its memberships), or the caller's own account (plan P22). A model test
+  keeps the interface to organization-owned sets plus `Organizations`, and the two scoped reads on its allow-list:
+  - `OwnAccount`: the caller's user row;
+  - `OwnMemberships`: the caller's memberships in every organization, the one query that turns off the organization
+    filter, because they decide which organizations the caller may enter (`/me`, T1.5's resolution). The filter is
+    off for the whole query: join it to `Organizations` only, never to an organization-owned set.
+- A handler that writes organization-owned rows before any organization context exists (signup, `POST /organizations`,
+  T3.2's invite acceptance) opens `ITrustedOrganizationScope.Open(organizationId)` (plan P25). Only for an id the
+  server derived (the organization it just created, an invite's), never one from the request. Keep it open through the
+  commit, so post-commit handlers run in it. `ArchitectureTests` allow-lists the types that may take it; never resolve
+  it from `IServiceProvider`, which that test can't see.
+- `OrganizationContextMiddleware` (Api) runs after authentication, on endpoints that need an organization (plan P32).
+  It reads `X-Organization: {slug}`, finds the caller's **active** membership through `ActiveMembershipResolver`
+  (`HybridCache`, key `membership:{userId}:{slug}`, misses cached too), and adds an identity with `OrganizationId` and
+  that membership's roles (`fixflow:role`, so `IsInRole` works) to `User`. Nothing reaches the cookie. A missing, empty
+  or repeated header → 400; any miss → a bare 404; an anonymous caller passes through to the 401.
+- Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`
+  (`OrganizationId`, `Roles`). Never read them from `User` entities, request bodies or route values. `Roles` is empty
+  without an organization context and while a trusted scope is open. `HttpCurrentUser` and the request log context
+  read the context only through `OrganizationContext.FindIdentity` (exactly one identity of its type, or none), and
+  the trusted scope's guard through `HasAnyIdentity`: the cookie's identity carries the claims stored with the
+  account. Never search the whole principal for an organization or role claim.
+- Every endpoint under `/api/v1` needs an organization: `MapFixFlowApi` puts `.RequireOrganization()` on the root
+  group. Organization-less endpoints (`/me*`, auth, `POST /organizations`, T3.2's invite lookup and acceptance) call
+  `.WithoutOrganization()` on their group or themselves (the last metadata wins), get no context even when the header
+  is sent, and must not touch organization-owned data, except through a trusted scope.
+  `EndpointCoverageTests` holds them to an allow-list, so a new one is added there deliberately.
+- Change memberships only through the `OrganizationMembership` aggregate. Its events drop the user's tag
+  `user:{userId}:memberships` after the commit (plan P33); a raw SQL or bulk update would stay cached for up to 60 s.
+- A `HybridCache` factory that uses scoped services (the DbContext) is called with `CancellationToken.None`. It runs on
+  the services of the request that started it, and other requests for the same key join it. A cancellable token would
+  let that request end, and dispose them, while the factory still runs for the others. With a cancellable token the
+  factory also runs without the caller's `ExecutionContext`, where `IHttpContextAccessor` reads null. So
+  `HttpCurrentUser` takes the `HttpContext` when it is created and drops it when the request's scope ends.
+- Policies never set `AuthenticationSchemes`: the policy evaluator would authenticate again and rebuild `User` without
+  the organization's identity.
+- SignalR hub validates `?org={slug}` the same way on connect, through `ActiveMembershipResolver`.
 
 ---
 
@@ -148,6 +204,8 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 - Exception messages can hold personal data. A failed post-commit handler is logged without them outside Development
   (ADR 0007). To log a reason, throw an exception that implements `ILogSafeMessage`, with a message built from IDs,
   codes and fixed text only.
+- A handler that catches an exception and carries on (forgot-password's failed send) logs
+  `redactor.ForLog(exception)` (`IExceptionRedactor`), never the exception itself, so the same rules apply.
 
 ---
 
@@ -161,12 +219,32 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 | Time logic | Domain tests | `FakeClock`; weekends, holidays, both DST transitions |
 
 - Test naming: `Method_Scenario_ExpectedResult`.
-- Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
-  Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
-- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres + Azurite per run) through the
-  constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user session (https, own
-  cookies, no redirects); `.WithOrganization(slug)` sets `X-Organization`.
+- Take unique values and request bodies from `TestData` (`Email()`, `OrganizationSlug()`, `Name(prefix)`,
+  `SignUp()`), not literals. Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
+- Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres, one Azurite and two Mailpits per
+  run) through the constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user
+  session (https, own cookies, no redirects) from its own client address (a /64 of `2001:db8::/32`), so rate limits
+  never span tests; `.WithOrganization(slug)` sets `X-Organization`.
+- Accounts: `client.SignUpAsync()` signs up a new account with its first organization and stays signed in;
+  `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
+- Set up data through the API where an endpoint exists. Data that no endpoint creates yet goes through its aggregate
+  inside `api.InOrganizationAsync(orgId, db => ...)` (`AppDatabaseExtensions`), where the organization filter,
+  ownership checks and post-commit handlers apply as in a request.
+- Cross-tenant (`CrossTenantExtensions`): `using var orgs = await api.TwoOrganizationsAsync()` gives `orgs.A` and
+  `orgs.B`, each with its `Id`, `Slug` and a signed-in client per role (`Admin`, `Manager`, `Technician`, `Tenant`, or
+  `As(role)` with `TestData.EveryRole`) that already sends its own slug; `api.OrganizationWithEveryRoleAsync()` gives
+  one such organization. `api.AddMemberAsync(orgId, roles)` adds a
+  signed-out `TestMember`, `api.MemberOfBothAsync(a, rolesInA, b, rolesInB)` one with different roles per organization,
+  and `api.SignInAsync(member)` signs one in. For a mismatched header, `.WithOrganization(otherSlug)` on a request
+  replaces the client's. Suspend or change roles through the aggregate with `api.ChangeMembershipAsync`, so the cache is
+  invalidated as in production.
+- Role policies: `RolePolicyTests` checks each one for every role through `PolicyTestEndpoints`. An endpoint's own
+  tests add a member without its role → 403 (`ReadProblemAsync(HttpStatusCode.Forbidden)`).
 - Tests run in parallel against that host: each creates its own orgs and users from `TestData`'s unique values, never
   resets or clears shared state, and reads `api.Emails` / `api.Logs` only by its own values.
 - The shared clock is frozen at `FixFlowApiFactory.SharedNow`. To move time: `await using var app = api.WithOwnClock(start)`.
+- Email: `api.Emails` captures what the host sends; `ResetLink.From(message)` and `ResetLink.LatestToken(api.Emails,
+  email)` read a reset link as the SPA does. To send over real SMTP: `await using var app = api.WithRealEmail(smtp)`
+  with `api.MailpitSmtp`, `api.RejectingSmtp` (550 to every recipient) or `SmtpEndpoint.Closed()`; `api.Mailpit`
+  reads what arrived. Chaos is global per Mailpit instance, so never set it on `api.Mailpit`.
 - Run focused: `dotnet test <project> --filter "FullyQualifiedName~<Name>"`.

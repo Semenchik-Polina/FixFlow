@@ -15,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- API and migrations bundle ---------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.402-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble AS build
 WORKDIR /src
 # The build-time OpenAPI document starts the app; CI checks the committed one (plan P9)
 ENV OpenApiGenerateDocuments=false
@@ -33,20 +33,20 @@ COPY src/ src/
 RUN dotnet publish src/FixFlow.API/FixFlow.API.csproj -c Release --no-restore -o /out/api
 
 FROM build AS bundle
-# dotnet ef runs Program up to Build() as Development to find the DbContext, and Program requires a database password.
+# dotnet ef runs Program up to Build() as Development and creates the DbContext, which requires a database password.
 # This placeholder only satisfies that check; nothing connects, and the bundle reads the real one when it runs.
 RUN Database__Password=design-time-placeholder dotnet ef migrations bundle --configuration Release \
     --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API --output /out/efbundle
 
 # --- Runtime images --------------------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.13-noble AS migrate
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-noble AS migrate
 WORKDIR /app
 COPY --from=bundle /out/efbundle ./
 USER $APP_UID
 # Reads the API's configuration (connection string, Database__Password) from the environment
 ENTRYPOINT ["./efbundle"]
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.13-noble AS api
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-noble AS api
 # curl only for the Compose healthcheck on /health/ready
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
@@ -55,5 +55,8 @@ WORKDIR /app
 # Owned by root: the app can read its files but not change them
 COPY --from=build /out/api ./
 COPY --from=web /web/dist ./wwwroot/
+# The Data Protection keys' folder (DataProtection__KeysPath, plan P24). The app user owns it, and a new named volume
+# mounted here takes that owner.
+RUN mkdir /data-protection-keys && chown $APP_UID /data-protection-keys
 USER $APP_UID
 ENTRYPOINT ["dotnet", "FixFlow.API.dll"]

@@ -31,6 +31,8 @@ quotes the input it couldn't parse.
 4. In the **Development** environment, exceptions are logged as thrown, messages included. There is no setting for it,
    only the environment. Testing, the `full` Compose profile (Production, plan P18) and anything else redact.
 5. Scope: the post-commit dispatcher (`DomainEventDispatcher`), where side effects such as email fail.
+   Extended by T1.4 to failures a handler catches (plan P30): it logs `IExceptionRedactor.ForLog(exception)`, which
+   applies these rules.
 
 ## Consequences
 

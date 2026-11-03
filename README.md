@@ -143,6 +143,24 @@ Frontend, from `web/`:
 npm run lint && npm run typecheck && npm test
 ```
 
+End-to-end: Playwright (Chromium) against the [full profile](#full-profile-production-like). All their requests reach
+the API from Docker's gateway address, so they share one auth rate-limit budget. Start the profile with
+`FIXFLOW_AUTH_PERMIT_LIMIT=1000` set in the shell for that one command, not in `.env`, so other runs keep S6's 10 per
+minute; a plain `up` puts it back to 10. Each test signs up its own organization and reads its mail from Mailpit's API.
+
+```bash
+FIXFLOW_AUTH_PERMIT_LIMIT=1000 docker compose --profile full up -d --build --wait   # Linux, macOS
+$env:FIXFLOW_AUTH_PERMIT_LIMIT=1000; docker compose --profile full up -d --build --wait  # Windows (this PowerShell session)
+```
+
+Then, from `tests/web-e2e/`:
+
+```bash
+npm ci && npx playwright install chromium   # once
+npx playwright test
+npx playwright show-report                  # the HTML report, with a trace for each failed test
+```
+
 ## Contributing
 
 - Conventional commits (`feat(work-orders): ...`), short-lived branches off `dev`, squash merge (or a merge commit for

@@ -14,9 +14,9 @@ public sealed class TestDbContext(
 
     public DbSet<Widget> Widgets => Set<Widget>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        modelBuilder.Entity<Widget>(widget =>
+        builder.Entity<Widget>(widget =>
         {
             widget.ToTable("widgets", Schema);
             widget.Property(w => w.Name).HasMaxLength(100);
@@ -24,6 +24,6 @@ public sealed class TestDbContext(
         });
 
         // Last, so the conventions cover the test entities too
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
     }
 }

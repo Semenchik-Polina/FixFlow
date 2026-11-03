@@ -11,8 +11,11 @@ public sealed class RequestLogContextOptions
 {
     public string UserIdClaimType { get; set; } = ClaimTypes.NameIdentifier;
 
-    /// <summary>Set by the API to the claim the organization context adds (T1.5).</summary>
-    public string? OrganizationIdClaimType { get; set; }
+    /// <summary>
+    /// Set by the API to read the organization context's id (T1.5) from that context's identity alone, as the current
+    /// user does: a claim of the same type can also be stored with the account, on the cookie's identity.
+    /// </summary>
+    public Func<ClaimsPrincipal, string?>? FindOrganizationId { get; set; }
 }
 
 /// <summary>
@@ -28,9 +31,9 @@ public sealed class RequestLogContextMiddleware(
     {
         var user = context.User;
 
-        using var userScope = Push("UserId", "fixflow.user_id", FindClaim(user, options.Value.UserIdClaimType));
+        using var userScope = Push("UserId", "fixflow.user_id", user.FindFirst(options.Value.UserIdClaimType)?.Value);
         using var organizationScope = Push(
-            "OrganizationId", "fixflow.organization_id", FindClaim(user, options.Value.OrganizationIdClaimType));
+            "OrganizationId", "fixflow.organization_id", options.Value.FindOrganizationId?.Invoke(user));
 
         await next(context);
     }
@@ -47,7 +50,4 @@ public sealed class RequestLogContextMiddleware(
         Activity.Current?.SetTag(tag, value);
         return LogContext.PushProperty(property, value);
     }
-
-    private static string? FindClaim(ClaimsPrincipal user, string? claimType) =>
-        claimType is null ? null : user.FindFirst(claimType)?.Value;
 }

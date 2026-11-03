@@ -19,6 +19,8 @@ public sealed class Widget : AggregateRoot, IOrganizationOwned, ISoftDeletable, 
 
     public int Bumps { get; private set; }
 
+    public WidgetSize Size { get; private set; } = WidgetSize.Small;
+
     public Guid OrganizationId { get; private set; }
 
     public Instant? DeletedAt { get; private set; }
@@ -41,4 +43,11 @@ public sealed class Widget : AggregateRoot, IOrganizationOwned, ISoftDeletable, 
 
     /// <summary>Tests raise the test events (WidgetEvents.cs) directly.</summary>
     public void Publish(IDomainEvent domainEvent) => Raise(domainEvent);
+}
+
+/// <summary>An enum column, so the enum convention has something to check in the test model.</summary>
+public enum WidgetSize
+{
+    Small,
+    Large,
 }

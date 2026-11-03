@@ -88,8 +88,8 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         // WidgetNoticeFailed is raised by this test only
         var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
             logEvent.Level == LogEventLevel.Error
-            && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeFailed) }
-            && logEvent.Properties["Handler"] is ScalarValue { Value: nameof(FailingNoticeHandler) });
+            && HasProperty(logEvent, "DomainEvent", nameof(WidgetNoticeFailed))
+            && HasProperty(logEvent, "Handler", nameof(FailingNoticeHandler)));
         // Its type and stack trace, but not its message: it quotes an email address (S26, ADR 0007)
         var exception = failure.Exception?.ToString() ?? "";
         Assert.StartsWith("System.InvalidOperationException: [message removed]", exception, StringComparison.Ordinal);
@@ -121,7 +121,7 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
         // WidgetNoticeMisconfigured is raised by this test only
         var failure = Assert.Single(api.Persistence.Logs.Events, logEvent =>
             logEvent.Level == LogEventLevel.Error
-            && logEvent.Properties["DomainEvent"] is ScalarValue { Value: nameof(WidgetNoticeMisconfigured) });
+            && HasProperty(logEvent, "DomainEvent", nameof(WidgetNoticeMisconfigured)));
         // Where it failed, without the message
         Assert.Contains(
             $"{nameof(MisconfiguredNoticeHandler)}..ctor", failure.Exception?.ToString(), StringComparison.Ordinal);
@@ -225,6 +225,14 @@ public class DomainEventDispatchTests(FixFlowApiFactory api)
 
         Assert.Equal(0, (await LoadAsync(target.Id)).Bumps);
     }
+
+    /// <summary>
+    /// Other tests share the sink, and their failed saves leave EF Core's own errors in it, without these properties.
+    /// </summary>
+    private static bool HasProperty(LogEvent logEvent, string name, string value) =>
+        logEvent.Properties.TryGetValue(name, out var property)
+        && property is ScalarValue { Value: string actual }
+        && actual == value;
 
     /// <summary>All a sink can write: the message, every property and the exception.</summary>
     private static string Render(LogEvent logEvent) =>

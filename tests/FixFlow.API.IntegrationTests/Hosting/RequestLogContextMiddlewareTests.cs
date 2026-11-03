@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using FixFlow.API.Auth;
 using FixFlow.API.IntegrationTests.Fixtures;
+using FixFlow.API.Organizations;
 using FixFlow.Hosting.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,11 +18,27 @@ public class RequestLogContextMiddlewareTests(FixFlowApiFactory api)
     private const string OrganizationClaimType = "test:organization_id";
 
     [Fact]
-    public void Api_ReadsTheOrganizationContextClaim()
+    public void Api_ReadsTheOrganizationContextsClaim()
     {
-        var options = api.Services.GetRequiredService<IOptions<RequestLogContextOptions>>().Value;
+        var findOrganizationId = api.Services.GetRequiredService<IOptions<RequestLogContextOptions>>().Value.FindOrganizationId;
+        var organizationId = Guid.CreateVersion7().ToString();
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(FixFlowClaimTypes.OrganizationId, organizationId)], OrganizationContext.AuthenticationType));
 
-        Assert.Equal(FixFlowClaimTypes.OrganizationId, options.OrganizationIdClaimType);
+        Assert.NotNull(findOrganizationId);
+        Assert.Equal(organizationId, findOrganizationId(user));
+    }
+
+    [Fact]
+    public void Api_OrganizationClaimOnTheCookiesIdentity_IsNotLogged()
+    {
+        var findOrganizationId = api.Services.GetRequiredService<IOptions<RequestLogContextOptions>>().Value.FindOrganizationId;
+        // A claim stored with the account: logging it would credit the request to that organization
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(FixFlowClaimTypes.OrganizationId, Guid.CreateVersion7().ToString())], "Identity.Application"));
+
+        Assert.NotNull(findOrganizationId);
+        Assert.Null(findOrganizationId(user));
     }
 
     [Fact]
@@ -74,7 +91,10 @@ public class RequestLogContextMiddlewareTests(FixFlowApiFactory api)
                 return Task.CompletedTask;
             },
             diagnosticContext,
-            Options.Create(new RequestLogContextOptions { OrganizationIdClaimType = OrganizationClaimType }));
+            Options.Create(new RequestLogContextOptions
+            {
+                FindOrganizationId = principal => principal.FindFirst(OrganizationClaimType)?.Value,
+            }));
 
         await middleware.InvokeAsync(new DefaultHttpContext { User = user });
 

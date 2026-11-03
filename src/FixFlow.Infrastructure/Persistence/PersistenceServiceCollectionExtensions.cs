@@ -1,10 +1,13 @@
 using System.Globalization;
+using FixFlow.Application.Errors;
 using FixFlow.Application.Persistence;
+using FixFlow.Infrastructure.Logging;
 using FixFlow.Infrastructure.Persistence.Events;
 using FixFlow.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace FixFlow.Infrastructure.Persistence;
 
@@ -27,6 +30,9 @@ public static class PersistenceServiceCollectionExtensions
         string? resolvedConnectionString = null;
 
         services.AddScoped<DomainEventDispatcher>();
+        // The dispatcher logs failed post-commit handlers through it. A host that doesn't call
+        // AddFixFlowExceptionLogging (tests, tools) gets messages removed, the safe default (ADR 0007).
+        services.TryAddSingleton<IExceptionRedactor, ExceptionRedactor>();
         services.AddScoped<OrganizationOwnershipInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddSingleton<DomainEventsTransactionInterceptor>();

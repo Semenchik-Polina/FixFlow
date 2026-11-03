@@ -66,3 +66,6 @@ Desktop.ini
 
 # Claude Code: personal settings stay local; shared .claude/settings.json is tracked
 .claude/settings.local.json
+
+# Local review notes: the T1.6–T1.8 code-review findings stay out of the repository
+docs/plans/t1.6-t1.8-review-findings.md

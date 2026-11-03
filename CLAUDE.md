@@ -26,7 +26,7 @@ Redis (cache + SignalR backplane) · RabbitMQ/MassTransit (Phase 2) · Azure Blo
 | Messaging / Redis / files | `ARCHITECTURE.md` §12, §13, §14 |
 | API / frontend conventions | `ARCHITECTURE.md` §15, §16 |
 | Security requirements (S1–S26) | `ARCHITECTURE.md` §17 |
-| Area-specific rules | `src/CLAUDE.md` (backend), `web/CLAUDE.md` (frontend) — loaded automatically when working in that folder |
+| Area-specific rules | `src/CLAUDE.md` (backend), `web/CLAUDE.md` (frontend), `tests/web-e2e/CLAUDE.md` (E2E) — loaded automatically when working in that folder |
 | Current multi-step work | `docs/plans/*.md` |
 
 ---
@@ -50,7 +50,10 @@ dotnet ef migrations add <Name> --project src/FixFlow.Infrastructure --startup-p
 npm run dev
 npm run lint && npm run typecheck && npm test
 npm run gen:api          # regenerate API client after any endpoint/DTO change
-npx playwright test      # E2E, needs `docker compose --profile full up`
+
+# E2E (from tests/web-e2e/): needs the `full` profile up with FIXFLOW_AUTH_PERMIT_LIMIT=1000 (README)
+npm run lint && npm run typecheck
+npx playwright test
 ```
 
 Local UIs: Mailpit http://localhost:8025 · Seq http://localhost:5341 · RabbitMQ http://localhost:15672
@@ -114,6 +117,12 @@ Breaking these is a bug even if tests pass.
 5. **Keep docs in sync:** a changed decision → new ADR in `docs/adr/` + update the relevant `ARCHITECTURE.md` row.
    Don't update docs for routine code changes.
 6. **Commits:** conventional commits (`feat(work-orders): ...`); small and focused. Ask before commit. Don't commit/push unless asked.
+7. **Skills** — load via the Skill tool, don't wait to be asked:
+   - Always, at session start: `using-superpowers` and `ponytail` (full).
+   - Backend C# changes → `dotnet-best-practices`. React changes → `vercel-react-best-practices`.
+   - New or reshaped UI → `frontend-design` (within MUI + theme tokens).
+   - Bug, test failure or unexpected behavior → `systematic-debugging` before proposing a fix.
+   - This file wins over any skill: `ponytail`'s "smallest change" still includes every test in item 3.
 
 ---
 

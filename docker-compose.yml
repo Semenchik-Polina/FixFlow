@@ -72,7 +72,7 @@ services:
       start_period: 10s
 
   mailpit:
-    image: axllent/mailpit:v1.31.5
+    image: axllent/mailpit:v1.32.0
     environment:
       MP_DATABASE: /data/mailpit.db
     ports:
@@ -88,7 +88,7 @@ services:
       start_period: 10s
 
   seq:
-    image: datalust/seq:2026.1.17182
+    image: datalust/seq:2026.1.17473
     environment:
       ACCEPT_EULA: "Y"
       # Applied only on the first start with an empty volume; `docker compose down -v` to reset
@@ -132,9 +132,21 @@ services:
       Kestrel__Certificates__Default__KeyPath: /certs/fixflow-dev.key
       # The Azurite address browsers use in SAS URLs (T4.2). Loopback, so an https page may call it over http (P19).
       Blob__PublicEndpoint: http://127.0.0.1:10000/devstoreaccount1
+      # The keys that protect the auth cookie, on a volume, so recreating the container signs no one out (plan P24)
+      DataProtection__KeysPath: /data-protection-keys
+      # Mailpit catches all mail (D21); its UI is http://localhost:8025
+      Smtp__Host: mailpit
+      Smtp__Port: "1025"
+      Smtp__Security: None
+      # Links in emails open the SPA this container serves
+      Spa__PublicUrl: https://localhost:8443
+      # Every request reaches the API from Docker's gateway, so the E2E run raises the auth limit (plan P28)
+      RateLimiting__Auth__PermitLimit: ${FIXFLOW_AUTH_PERMIT_LIMIT:-10}
     ports:
       - "127.0.0.1:8443:8443"
     volumes:
+      # Phase 2's replicas on this host share it too
+      - api-data-protection:/data-protection-keys
       - type: bind
         source: ./certs
         target: /certs
@@ -167,3 +179,4 @@ volumes:
   azurite-data:
   mailpit-data:
   seq-data:
+  api-data-protection:
