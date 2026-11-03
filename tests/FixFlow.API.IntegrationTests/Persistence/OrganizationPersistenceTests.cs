@@ -14,7 +14,7 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
     public async Task Membership_SavedWithRoles_RoundTrips()
     {
         var (organization, user) = await CreateOrganizationAndUserAsync();
-        var member = InOrganization(organization);
+        var member = TestCurrentUser.InOrganization(organization);
 
         var membership = await SaveMembershipAsync(member, user, Role.Manager, Role.Technician);
 
@@ -30,7 +30,7 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
     public async Task ChangeRoles_RemoveKeepAndAdd_Persists()
     {
         var (organization, user) = await CreateOrganizationAndUserAsync();
-        var member = InOrganization(organization);
+        var member = TestCurrentUser.InOrganization(organization);
         var membership = await SaveMembershipAsync(member, user, Role.Manager, Role.Technician);
 
         await using (var scope = api.Persistence.CreateScope(member))
@@ -52,7 +52,7 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
     public async Task Membership_OfAnotherOrganization_IsInvisible()
     {
         var (organization, user) = await CreateOrganizationAndUserAsync();
-        var membership = await SaveMembershipAsync(InOrganization(organization), user, Role.Admin);
+        var membership = await SaveMembershipAsync(TestCurrentUser.InOrganization(organization), user, Role.Admin);
 
         Assert.False(await MembershipExistsAsync(TestCurrentUser.InNewOrganization(), membership.Id));
         Assert.False(await MembershipExistsAsync(TestCurrentUser.WithoutOrganization(), membership.Id));
@@ -71,7 +71,7 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
     public async Task Organization_SlugTaken_ViolatesUniqueIndex()
     {
         var slug = TestData.OrganizationSlug();
-        await SaveOrganizationAsync(slug);
+        await api.Persistence.SaveOrganizationAsync(slug);
 
         await using var scope = api.Persistence.CreateScope(TestCurrentUser.WithoutOrganization());
         scope.Db.Organizations.Add(Organization.Create(TestData.Name("Org"), slug));
@@ -84,7 +84,7 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
     public async Task Membership_SecondForSameUserAndOrganization_ViolatesUniqueIndex()
     {
         var (organization, user) = await CreateOrganizationAndUserAsync();
-        var member = InOrganization(organization);
+        var member = TestCurrentUser.InOrganization(organization);
         await SaveMembershipAsync(member, user, Role.Tenant);
 
         await using var scope = api.Persistence.CreateScope(member);
@@ -95,13 +95,9 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
             "ix_organization_memberships_user_id_organization_id", () => scope.Db.SaveChangesAsync(_ct));
     }
 
-    /// <summary>A caller in <paramref name="organization"/>, as the organization context will open it (T1.5).</summary>
-    private static TestCurrentUser InOrganization(Organization organization) =>
-        new(Guid.CreateVersion7(), organization.Id);
-
     private async Task<(Organization Organization, User User)> CreateOrganizationAndUserAsync()
     {
-        var organization = await SaveOrganizationAsync(TestData.OrganizationSlug());
+        var organization = await api.Persistence.SaveOrganizationAsync();
 
         // Neither is organization-owned, so no organization context is needed
         await using var scope = api.Persistence.CreateScope(TestCurrentUser.WithoutOrganization());
@@ -110,15 +106,6 @@ public class OrganizationPersistenceTests(FixFlowApiFactory api)
         await scope.Db.SaveChangesAsync(_ct);
 
         return (organization, user);
-    }
-
-    private async Task<Organization> SaveOrganizationAsync(string slug)
-    {
-        await using var scope = api.Persistence.CreateScope(TestCurrentUser.WithoutOrganization());
-        var organization = Organization.Create(TestData.Name("Org"), slug);
-        scope.Db.Organizations.Add(organization);
-        await scope.Db.SaveChangesAsync(_ct);
-        return organization;
     }
 
     private async Task<OrganizationMembership> SaveMembershipAsync(

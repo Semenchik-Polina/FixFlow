@@ -6,6 +6,7 @@ using FixFlow.Application.Identity;
 using FixFlow.Application.Persistence;
 using FixFlow.Domain;
 using FixFlow.Domain.Organizations;
+using FixFlow.Domain.Properties;
 using FixFlow.Infrastructure.Persistence.Configurations;
 using FixFlow.Infrastructure.Persistence.Events;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -55,6 +56,10 @@ public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbConte
     public DbSet<Organization> Organizations => Set<Organization>();
 
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+
+    public DbSet<Property> Properties => Set<Property>();
+
+    public DbSet<Unit> Units => Set<Unit>();
 
     public IQueryable<User> OwnAccount => Users.Where(u => u.Id == CurrentUserId);
 
@@ -168,6 +173,10 @@ public class FixFlowDbContext : IdentityUserContext<User, Guid>, IFixFlowDbConte
         builder.ApplyConfiguration(new UserConfiguration());
         builder.ApplyConfigurationsFromAssembly(
             InfrastructureAssembly.Instance, type => type != typeof(UserConfiguration));
+
+        // In public, not a module's schema: Npgsql quotes a qualified collation as one name ("properties.x") in a
+        // column's COLLATE, so the column finds it through the search path
+        builder.HasCollation(Collations.CaseInsensitive, locale: "und-u-ks-level2", provider: "icu", deterministic: false);
 
         // Filters and keys belong to the root of a hierarchy; derived types inherit them. Shared-type entities (the
         // join tables of many-to-many relationships) are property bags with no marker interfaces, and

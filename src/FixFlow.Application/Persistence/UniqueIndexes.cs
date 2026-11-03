@@ -15,4 +15,7 @@ public static class UniqueIndexes
 
     /// <summary>One membership per user and organization (§10).</summary>
     public const string MembershipUserOrganization = "ix_organization_memberships_user_id_organization_id";
+
+    /// <summary>A unit's name is unique in its property among the units that aren't archived, ignoring case.</summary>
+    public const string UnitName = "ix_units_property_id_name";
 }

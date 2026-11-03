@@ -1,5 +1,6 @@
 using FixFlow.Application.Identity;
 using FixFlow.Domain.Organizations;
+using FixFlow.Domain.Properties;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -25,6 +26,15 @@ public interface IFixFlowDbContext
 
     /// <summary>The request's organization's memberships only (organization filter), each with its roles.</summary>
     DbSet<OrganizationMembership> OrganizationMemberships { get; }
+
+    /// <summary>The request's organization's properties that aren't archived (organization and soft-delete filters).</summary>
+    DbSet<Property> Properties { get; }
+
+    /// <summary>
+    /// The request's organization's units that aren't archived (organization and soft-delete filters). The filters
+    /// don't look at the property: a unit of an archived property stays visible, so load the property first.
+    /// </summary>
+    DbSet<Unit> Units { get; }
 
     /// <summary>The caller's own account: one row when signed in, none for an anonymous caller.</summary>
     IQueryable<User> OwnAccount { get; }

@@ -102,6 +102,8 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   - `IHasRowVersion`: `RowVersion` mapped to `xmin` (on `WorkOrder` and `MaintenanceRequest`).
 - The model tests (`tests/.../Persistence/ModelConventionTests.cs`) check every entity against these conventions.
 - NodaTime mapping via `UseNodaTime()`: `Instant` ↔ `timestamptz`, `LocalTime` ↔ `time`, `LocalDate` ↔ `date`.
+- Case-insensitive comparison and uniqueness: `.UseCollation(Collations.CaseInsensitive)` on the column (ICU,
+  nondeterministic; plan P37), not a normalized copy of the value.
 - Queries: `AsNoTracking()`, project to DTOs with `Select`, always paginate lists. No `ToList()` before filtering.
 
 ### Migrations
