@@ -99,6 +99,21 @@ public sealed class TrustedOrganizationScopeTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Open_OrganizationClaimOnTheCookiesIdentity_Opens()
+    {
+        // A claim stored with the account is no organization context, as the current user reads it: POST
+        // /organizations must still work for that account
+        _httpContext.HttpContext!.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(FixFlowClaimTypes.OrganizationId, Guid.CreateVersion7().ToString())], "Identity.Application"));
+        await using var request = _services.CreateAsyncScope();
+        var openId = Guid.CreateVersion7();
+
+        using var scope = TrustedScope(request).Open(openId);
+
+        Assert.Equal(openId, CurrentUser(request).OrganizationId);
+    }
+
+    [Fact]
     public async Task Open_EmptyId_Throws()
     {
         await using var request = _services.CreateAsyncScope();

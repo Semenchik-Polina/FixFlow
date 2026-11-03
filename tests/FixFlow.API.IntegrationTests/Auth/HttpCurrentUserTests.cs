@@ -160,6 +160,21 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task CurrentUser_TwoOrganizationContextIdentities_GiveNoOrganizationOrRoles()
+    {
+        var principal = InOrganization(Guid.CreateVersion7(), Guid.CreateVersion7(), nameof(Role.Tenant));
+        // A second one, stale or foreign: neither may decide
+        principal.AddIdentity(ContextIdentity(Guid.CreateVersion7(), nameof(Role.Admin)));
+        var accessor = _services.GetRequiredService<IHttpContextAccessor>();
+        accessor.HttpContext = new DefaultHttpContext { User = principal };
+        await using var request = _services.CreateAsyncScope();
+        var currentUser = request.ServiceProvider.GetRequiredService<ICurrentUser>();
+
+        Assert.Null(currentUser.OrganizationId);
+        Assert.Empty(currentUser.Roles);
+    }
+
+    [Fact]
     public async Task UserId_NoRequest_IsNull()
     {
         await using var scope = _services.CreateAsyncScope();
@@ -176,14 +191,16 @@ public sealed class HttpCurrentUserTests : IAsyncDisposable
     private static ClaimsPrincipal InOrganization(Guid userId, Guid organizationId, params string[] roles)
     {
         var principal = SignedIn(userId);
-        principal.AddIdentity(new ClaimsIdentity(
-            [
-                new Claim(FixFlowClaimTypes.OrganizationId, organizationId.ToString()),
-                .. roles.Select(role => new Claim(FixFlowClaimTypes.Role, role)),
-            ],
-            OrganizationContext.AuthenticationType,
-            nameType: null,
-            roleType: FixFlowClaimTypes.Role));
+        principal.AddIdentity(ContextIdentity(organizationId, roles));
         return principal;
     }
+
+    private static ClaimsIdentity ContextIdentity(Guid organizationId, params string[] roles) => new(
+        [
+            new Claim(FixFlowClaimTypes.OrganizationId, organizationId.ToString()),
+            .. roles.Select(role => new Claim(FixFlowClaimTypes.Role, role)),
+        ],
+        OrganizationContext.AuthenticationType,
+        nameType: null,
+        roleType: FixFlowClaimTypes.Role);
 }

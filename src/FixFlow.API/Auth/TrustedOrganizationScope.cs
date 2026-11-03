@@ -1,3 +1,4 @@
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 
 namespace FixFlow.API.Auth;
@@ -27,8 +28,10 @@ internal sealed class TrustedOrganizationScope(IHttpContextAccessor httpContextA
             throw new InvalidOperationException("A trusted organization scope is already open.");
         }
 
-        // The scope is for callers without a context; it must never override the one the request resolved
-        if (httpContextAccessor.HttpContext?.User.FindFirst(FixFlowClaimTypes.OrganizationId) is not null)
+        // The scope is for callers without a context; it must never override the one the request resolved. Any identity
+        // of the context's type counts, even one that FindIdentity ignores as a duplicate. A claim on another identity
+        // (one stored with the account) is no context, as HttpCurrentUser reads it.
+        if (OrganizationContext.HasAnyIdentity(httpContextAccessor.HttpContext?.User))
         {
             throw new InvalidOperationException("The request already has an organization context.");
         }

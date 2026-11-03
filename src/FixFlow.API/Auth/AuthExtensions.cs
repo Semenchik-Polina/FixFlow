@@ -1,3 +1,4 @@
+using FixFlow.API.Organizations;
 using FixFlow.Application.Auth;
 using FixFlow.Application.Identity;
 using FixFlow.Hosting.Logging;
@@ -77,8 +78,8 @@ public static class AuthExtensions
         services.AddScoped<ITrustedOrganizationScope>(provider => provider.GetRequiredService<TrustedOrganizationScope>());
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         // The organization context's id joins the request's logs and trace
-        services.Configure<RequestLogContextOptions>(
-            options => options.OrganizationIdClaimType = FixFlowClaimTypes.OrganizationId);
+        services.Configure<RequestLogContextOptions>(options => options.FindOrganizationId =
+            user => OrganizationContext.FindIdentity(user)?.FindFirst(FixFlowClaimTypes.OrganizationId)?.Value);
 
         return services;
     }

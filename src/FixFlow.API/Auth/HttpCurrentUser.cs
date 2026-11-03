@@ -52,8 +52,7 @@ internal sealed class HttpCurrentUser(IHttpContextAccessor httpContextAccessor, 
     // Only the identity the organization context added in the middleware (plan T1.6). The cookie's identity carries the claims stored
     // with the account (Identity's user claims), and a search of the whole principal would read them first: a stored
     // organization or role claim would then hold in every organization.
-    private ClaimsIdentity? OrganizationIdentity => _httpContext?.User.Identities
-        .FirstOrDefault(identity => identity.AuthenticationType == OrganizationContext.AuthenticationType);
+    private ClaimsIdentity? OrganizationIdentity => OrganizationContext.FindIdentity(_httpContext?.User);
 
     private static Guid? ParseId(Claim? claim) => Guid.TryParse(claim?.Value, out var id) ? id : null;
 

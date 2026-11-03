@@ -78,6 +78,12 @@ internal sealed partial class OrganizationContextMiddleware(
             return;
         }
 
+        // Nothing else adds one, and nothing reaches the cookie: an existing one is a bug, and a 500 fails closed
+        if (OrganizationContext.HasAnyIdentity(context.User))
+        {
+            throw new InvalidOperationException("The request's user already has an organization context identity.");
+        }
+
         context.User.AddIdentity(CreateIdentity(membership));
         await next(context);
     }
