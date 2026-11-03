@@ -36,6 +36,25 @@ describe('CreateOrganizationPage', () => {
     expect(sent).toEqual({ name: 'Riverside Lofts', slug: 'riverside-lofts' });
   });
 
+  it('opens the organization at the slug the API stored, not the one typed', async () => {
+    const user = userEvent.setup();
+    const memberships = [aMembership('acme')];
+    server.use(
+      getGetMeMockHandler(() => aUser(...memberships)),
+      getCreateOrganizationMockHandler(() => {
+        memberships.push(aMembership('riverside-lofts-2', ['Admin']));
+        return { id: '0199b1c2-0000-7000-8000-000000000202', name: 'Riverside Lofts', slug: 'riverside-lofts-2' };
+      }),
+    );
+    const { router } = renderRoute('/organizations/new');
+
+    await user.type(await screen.findByLabelText('Organization name'), 'Riverside Lofts');
+    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+
+    expect(await screen.findByRole('button', { name: 'Riverside Lofts 2, switch organization' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/riverside-lofts-2');
+  });
+
   it("shows the API's error on the organization name field", async () => {
     const user = userEvent.setup();
     givenSignedIn(aMembership('acme'));

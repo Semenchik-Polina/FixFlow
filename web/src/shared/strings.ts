@@ -49,6 +49,7 @@ export const strings = {
   session: {
     signedInAs: (email: string) => `Signed in as ${email}.`,
     signOut: 'Sign out',
+    signOutFailed: "You're still signed in: FixFlow couldn't sign you out. Check your connection, then try again.",
   },
   roles: {
     Tenant: 'Tenant',

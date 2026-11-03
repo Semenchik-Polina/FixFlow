@@ -31,9 +31,11 @@ export function CreateOrganizationPage() {
     formState: { errors, isSubmitting },
   } = form;
 
-  const onSubmit = handleSubmit(async ({ organizationName, slug }) => {
+  const onSubmit = handleSubmit(async ({ organizationName, slug: typedSlug }) => {
+    // The slug the API stored, not the one typed: the layout matches it against the memberships
+    let slug: string;
     try {
-      await createOrganization.mutateAsync({ data: { name: organizationName, slug } });
+      ({ slug } = await createOrganization.mutateAsync({ data: { name: organizationName, slug: typedSlug } }));
     } catch (error) {
       applyServerErrors(error, setError, { name: 'organizationName', slug: 'slug' });
       return;

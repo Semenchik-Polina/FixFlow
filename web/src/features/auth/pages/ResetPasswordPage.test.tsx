@@ -58,6 +58,23 @@ describe('ResetPasswordPage', () => {
     expect(screen.getByRole('link', { name: 'Ask for a new link' })).toHaveAttribute('href', '/forgot-password');
   });
 
+  it('offers a new link when the API rejects the code itself', async () => {
+    const user = userEvent.setup();
+    server.use(
+      mock.post('*/api/v1/auth/reset-password', () =>
+        validationProblem({ token: ["'Token' must be 2048 characters or fewer."] }),
+      ),
+    );
+    renderRoute(LINK);
+
+    await choose(user, 'a brand new passphrase');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Open the link from the email again, or ask for a new one.',
+    );
+    expect(screen.getByRole('link', { name: 'Ask for a new link' })).toHaveAttribute('href', '/forgot-password');
+  });
+
   it('asks to set the password again after a conflicting save', async () => {
     const user = userEvent.setup();
     server.use(mock.post('*/api/v1/auth/reset-password', () => problem(409, { title: 'Conflict' })));

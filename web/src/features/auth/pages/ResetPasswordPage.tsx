@@ -49,6 +49,9 @@ export function ResetPasswordPage() {
       if (error instanceof ApiError && error.status === 422) {
         // Invalid, expired or used: the API says so in a fixed detail
         setError('root', { type: INVALID_LINK, message: error.detail ?? authStrings.resetPassword.incomplete });
+      } else if (error instanceof ApiError && error.fieldErrors['token'] !== undefined) {
+        // A mangled link (too long, say): the form can't fix it, only a new link can
+        setError('root', { type: INVALID_LINK, message: authStrings.resetPassword.incomplete });
       } else if (error instanceof ApiError && error.status === 409) {
         // Another save to the account came first; the same link works again
         setError('root', { type: 'server', message: authStrings.resetPassword.conflict });

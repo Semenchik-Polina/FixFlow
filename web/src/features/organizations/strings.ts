@@ -15,6 +15,7 @@ export const organizationStrings = {
     title: 'Organization not found',
     detail: (slug: string) =>
       `There's no organization at /${slug} that you can open. Check the address, or choose one of your organizations.`,
+    detailNoSlug: "There's no organization at this address that you can open. Choose one of your organizations.",
     yourOrganizations: 'Your organizations',
   },
 } as const;

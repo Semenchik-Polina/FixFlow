@@ -1,4 +1,6 @@
+import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import ListSubheader from '@mui/material/ListSubheader';
@@ -14,7 +16,7 @@ import { strings } from '../../shared/strings';
 export function UserMenu() {
   const menuId = useId();
   const me = useCurrentUser().data;
-  const { signOut, isPending } = useSignOut();
+  const { signOut, isPending, failed } = useSignOut();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = anchor !== null;
 
@@ -55,6 +57,12 @@ export function UserMenu() {
         <MenuItem onClick={signOut} disabled={isPending}>
           {strings.session.signOut}
         </MenuItem>
+        {/* No tabindex, so the menu's keyboard navigation skips it like the subheader */}
+        {failed && (
+          <Box component="li" sx={{ px: 2, py: 1, maxWidth: 320 }}>
+            <Alert severity="error">{strings.session.signOutFailed}</Alert>
+          </Box>
+        )}
       </Menu>
     </>
   );

@@ -88,8 +88,19 @@ describe('routes: organization pages', () => {
     renderRoute('/brightway-homes');
 
     expect(await screen.findByRole('heading', { name: 'Organization not found' })).toBeInTheDocument();
+    expect(screen.getByText(/no organization at \/brightway-homes that you can open/)).toBeInTheDocument();
     expect(screen.queryByRole('banner')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Your organizations' })).toHaveAttribute('href', '/organizations');
+  });
+
+  it('doesn\'t repeat a crafted address on the "Organization not found" page', async () => {
+    givenSignedIn(aMembership('acme'));
+
+    renderRoute('/Your%20account%20is%20suspended.%20Call%20555-0100');
+
+    expect(await screen.findByRole('heading', { name: 'Organization not found' })).toBeInTheDocument();
+    expect(screen.getByText(/no organization at this address that you can open/)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('suspended');
   });
 
   it('offers to try again when the session fails to load', async () => {

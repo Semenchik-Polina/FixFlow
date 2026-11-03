@@ -1,9 +1,10 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http as mock } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { getLogOutMockHandler } from '../../api/generated/fixflow-api/fixflow-api.msw';
 import { redirectToLogin } from '../../api/navigation';
-import { aMembership, givenSignedIn } from '../../test/fixtures';
+import { aMembership, givenSignedIn, problem } from '../../test/fixtures';
 import { renderRoute } from '../../test/renderWithProviders';
 import { server } from '../../test/server';
 
@@ -68,5 +69,20 @@ describe('AppShell user menu', () => {
 
     await vi.waitFor(() => expect(redirectToLogin).toHaveBeenCalledOnce());
     expect(signedOut).toHaveBeenCalledOnce();
+  });
+
+  it('says so when signing out fails, and stays: the session still works', async () => {
+    const user = userEvent.setup();
+    server.use(mock.post('*/api/v1/auth/logout', () => problem(503)));
+    givenSignedIn(aMembership('acme'));
+    renderRoute('/acme');
+
+    await user.click(await screen.findByRole('button', { name: 'Account' }));
+    const menu = screen.getByRole('menu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Sign out' }));
+
+    expect(await within(menu).findByRole('alert')).toHaveTextContent("You're still signed in");
+    expect(within(menu).getByRole('menuitem', { name: 'Sign out' })).toBeEnabled();
+    expect(redirectToLogin).not.toHaveBeenCalled();
   });
 });
