@@ -26,7 +26,7 @@ Redis (cache + SignalR backplane) · RabbitMQ/MassTransit (Phase 2) · Azure Blo
 | Messaging / Redis / files | `ARCHITECTURE.md` §12, §13, §14 |
 | API / frontend conventions | `ARCHITECTURE.md` §15, §16 |
 | Security requirements (S1–S26) | `ARCHITECTURE.md` §17 |
-| Area-specific rules | `src/CLAUDE.md` (backend), `web/CLAUDE.md` (frontend) — loaded automatically when working in that folder |
+| Area-specific rules | `src/CLAUDE.md` (backend), `web/CLAUDE.md` (frontend), `tests/web-e2e/CLAUDE.md` (E2E) — loaded automatically when working in that folder |
 | Current multi-step work | `docs/plans/*.md` |
 
 ---

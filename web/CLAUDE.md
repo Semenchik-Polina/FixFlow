@@ -40,7 +40,9 @@ web/src/
 ## 2. API access
 
 - Use **only** the generated client/hooks from `api/generated`. No direct `fetch`/`axios` in components.
-- After any backend endpoint/DTO change: `npm run gen:api`, then fix type errors.
+- After any backend endpoint/DTO change: `dotnet build ../src/FixFlow.API` first (it writes
+  `src/FixFlow.API/openapi.json`, which orval reads), then `npm run gen:api`, then fix type errors. Commit
+  `openapi.json` and `api/generated` with the change; CI fails when either is stale.
 - `api/http.ts` sends cookies (`credentials: 'include'`), parses Problem Details into a typed `ApiError`,
   adds `X-Organization: {orgSlug}` taken **only** from the current URL, and redirects to `/login` on 401.
 - To read the shape of an endpoint, read the backend endpoint/DTO or the OpenAPI document — not the generated files.
@@ -124,7 +126,6 @@ web/src/
   `problem(...)` / `validationProblem(...)` for error answers. Org pages need `givenSignedIn`, or their layout shows
   "Organization not found". A test that depends on the `X-Organization` header needs a browser router, because
   `http.ts` reads the slug from `window.location`.
-- E2E: Playwright in `tests/web-e2e/` (its own package; README "Tests"), only critical flows (submit → assign → complete
-  → close). Same locator rules; password fields need `{ exact: true }`, since their "Show password" toggle matches too.
+- E2E: Playwright in `tests/web-e2e/`, its own package with its own guide (`tests/web-e2e/CLAUDE.md`).
 - Run focused: `npx vitest src/features/work-orders`.
 - Before done: `npm run lint && npm run typecheck && npm test`.

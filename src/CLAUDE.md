@@ -59,6 +59,9 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
   `ProducesValidationProblem()` / `ProducesProblem(...)` the errors (429 too, when rate-limited).
 - Every endpoint names its operation with `.WithName("GetMe")`, so orval generates `useGetMe`, not a name built
   from the path.
+- `dotnet build` writes the OpenAPI document to `FixFlow.API/openapi.json`, which the SPA's client is generated from.
+  After an endpoint or DTO change, commit it, then run `npm run gen:api` in `web/` and commit the client too; CI fails
+  when either is stale.
 
 ---
 
@@ -214,14 +217,17 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
 | Time logic | Domain tests | `FakeClock`; weekends, holidays, both DST transitions |
 
 - Test naming: `Method_Scenario_ExpectedResult`.
-- Use the shared fixtures/builders (`TestData.WorkOrder()...`) instead of building entities by hand.
-  Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
+- Take unique values and request bodies from `TestData` (`Email()`, `OrganizationSlug()`, `Name(prefix)`,
+  `SignUp()`), not literals. Check error responses with `response.ReadProblemAsync(status)` (+ `.FieldErrors()`).
 - Integration tests take the shared `FixFlowApiFactory` (one host over one Postgres, one Azurite and two Mailpits per
   run) through the constructor; don't start containers or build hosts ad hoc. `api.CreateApiClient()` is one user
   session (https, own cookies, no redirects) from its own client address (a /64 of `2001:db8::/32`), so rate limits
   never span tests; `.WithOrganization(slug)` sets `X-Organization`.
 - Accounts: `client.SignUpAsync()` signs up a new account with its first organization and stays signed in;
   `LogInAsync`, `GetMeAsync` and `CreateOrganizationAsync` are next to it (`IdentityClientExtensions`).
+- Set up data through the API where an endpoint exists. Data that no endpoint creates yet goes through its aggregate
+  inside `api.InOrganizationAsync(orgId, db => ...)` (`AppDatabaseExtensions`), where the organization filter,
+  ownership checks and post-commit handlers apply as in a request.
 - Cross-tenant (`CrossTenantExtensions`): `using var orgs = await api.TwoOrganizationsAsync()` gives `orgs.A` and
   `orgs.B`, each with its `Id`, `Slug` and a signed-in client per role (`Admin`, `Manager`, `Technician`, `Tenant`, or
   `As(role)` with `TestData.EveryRole`) that already sends its own slug; `api.OrganizationWithEveryRoleAsync()` gives
