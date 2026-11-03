@@ -12,8 +12,9 @@ Background: `ARCHITECTURE.md` §19, plan P36 in `docs/plans/mvp.md`. Run all com
 - It runs against the Compose `full` profile at https://localhost:8443 (README "Full profile"); nothing here starts the
   stack. That profile runs the built API image with the SPA inside, so a change in `src/` or `web/` reaches these tests
   only after `docker compose --profile full up -d --build --wait`.
-- Set `FIXFLOW_AUTH_PERMIT_LIMIT=1000` in `.env` before starting the profile: every request reaches the API from
-  Docker's gateway address, so all tests share one auth rate-limit budget (10 a minute by default).
+- Start the profile with `FIXFLOW_AUTH_PERMIT_LIMIT=1000` set in the shell for that command (README "Tests"), never
+  in `.env`: every request reaches the API from Docker's gateway address, so all tests share one auth rate-limit
+  budget, and `.env` would keep 1000 for every later run instead of S6's 10 a minute.
 - Only the flows `docs/plans/mvp.md` lists as a task's "E2E:" item belong here; each milestone adds its own. Everything
   else is a component or integration test.
 

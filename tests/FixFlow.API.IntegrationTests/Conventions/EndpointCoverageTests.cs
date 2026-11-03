@@ -3,6 +3,7 @@ using FixFlow.API.Endpoints;
 using FixFlow.API.IntegrationTests.Fixtures;
 using FixFlow.API.Organizations;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -100,6 +101,15 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
     public void Endpoints_SetNoSchemesOrRoles() => Assert.Empty(WithSchemesOrRoles(HostEndpoints()));
 
     [Fact]
+    public void Endpoints_UseNoInlinePolicies() => Assert.Empty(WithInlinePolicies(HostEndpoints()));
+
+    [Fact]
+    public void Endpoints_NameOnlyCatalogPolicies() => Assert.Empty(WithUnknownPolicies(HostEndpoints()));
+
+    [Fact]
+    public void Endpoints_NameOneRolePolicyAtMost() => Assert.Empty(WithSeveralRolePolicies(HostEndpoints()));
+
+    [Fact]
     public async Task Policies_SetNoSchemes()
     {
         var provider = api.Services.GetRequiredService<IAuthorizationPolicyProvider>();
@@ -174,6 +184,46 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
         Assert.Equal(["GET /api/v1/widgets"], WithSchemesOrRoles([endpoint]));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WithInlinePolicies_PolicyOrRequirementData_AreReported(bool requirementData)
+    {
+        // What RequireAuthorization(p => p.RequireRole(...)) and an attribute with requirements add, next to a role policy
+        object inline = requirementData
+            ? new ManagerRequirementData()
+            : new AuthorizationPolicyBuilder().RequireRole("Manager").Build();
+        var endpoint = Endpoint(
+            "/api/v1/widgets", OrganizationContextMetadata.Required, new AuthorizeAttribute(Policies.CanManageProperties), inline);
+
+        Assert.Equal(["GET /api/v1/widgets"], WithInlinePolicies([endpoint]));
+    }
+
+    [Fact]
+    public void WithUnknownPolicies_PolicyOutsideTheCatalog_IsReported()
+    {
+        var endpoint = Endpoint(
+            "/api/v1/widgets",
+            OrganizationContextMetadata.Required,
+            new AuthorizeAttribute(Policies.CanManageProperties),
+            new AuthorizeAttribute("CanManageWidgets"));
+
+        Assert.Equal(["GET /api/v1/widgets"], WithUnknownPolicies([endpoint]));
+    }
+
+    [Fact]
+    public void WithSeveralRolePolicies_TwoRolePolicies_IsReported()
+    {
+        // A group's policy and its endpoint's: both must pass, and no role passes these two
+        var endpoint = Endpoint(
+            "/api/v1/widgets",
+            OrganizationContextMetadata.Required,
+            new AuthorizeAttribute(Policies.CanManageProperties),
+            new AuthorizeAttribute(Policies.CanSubmitRequests));
+
+        Assert.Equal(["GET /api/v1/widgets"], WithSeveralRolePolicies([endpoint]));
+    }
+
     [Fact]
     public void Checks_OrganizationEndpointWithRolePolicy_PassesThemAll()
     {
@@ -186,12 +236,16 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
             .Concat(AnonymousNotAllowListed(endpoint))
             .Concat(OrganizationEndpointsWithoutRolePolicy(endpoint))
             .Concat(OrganizationLessEndpointsWithRolePolicy(endpoint))
-            .Concat(WithSchemesOrRoles(endpoint)));
+            .Concat(WithSchemesOrRoles(endpoint))
+            .Concat(WithInlinePolicies(endpoint))
+            .Concat(WithUnknownPolicies(endpoint))
+            .Concat(WithSeveralRolePolicies(endpoint)));
     }
 
     /// <summary>
     /// Every endpoint relies on the fallback policy alone, or is anonymous and authorized at once (the anonymous one
-    /// wins, silently). An inline <c>AuthorizationPolicy</c> counts as none: endpoints name a policy.
+    /// wins, silently). An inline policy counts as none here: endpoints name a policy, and
+    /// <see cref="WithInlinePolicies"/> reports one.
     /// </summary>
     private static IEnumerable<string> WithoutExplicitAuthorization(IEnumerable<RouteEndpoint> endpoints) =>
         endpoints.Where(endpoint => IsAnonymous(endpoint) == AuthorizeData(endpoint).Any()).SelectMany(Routes);
@@ -219,6 +273,31 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
             .Where(endpoint => AuthorizeData(endpoint).Any(data => data.AuthenticationSchemes is not null || data.Roles is not null))
             .SelectMany(Routes);
 
+    /// <summary>
+    /// The middleware combines inline policies and requirements with the named ones, and none of the checks above reads
+    /// them: they could require a role from the principal or set schemes.
+    /// </summary>
+    private static IEnumerable<string> WithInlinePolicies(IEnumerable<RouteEndpoint> endpoints) =>
+        endpoints
+            .Where(endpoint => endpoint.Metadata.Any(item => item is AuthorizationPolicy or IAuthorizationRequirementData))
+            .SelectMany(Routes);
+
+    /// <summary>
+    /// <see cref="Policies_SetNoSchemes"/> checks the catalog's policies, so a policy registered anywhere else goes
+    /// unchecked.
+    /// </summary>
+    private static IEnumerable<string> WithUnknownPolicies(IEnumerable<RouteEndpoint> endpoints) =>
+        endpoints
+            .Where(endpoint => AuthorizeData(endpoint).Any(data => data.Policy is not null && !IsRolePolicy(data)))
+            .SelectMany(Routes);
+
+    /// <summary>
+    /// Policies combine with AND, not "the last wins": a group's role policy and its endpoint's must both pass, and
+    /// may share no role.
+    /// </summary>
+    private static IEnumerable<string> WithSeveralRolePolicies(IEnumerable<RouteEndpoint> endpoints) =>
+        endpoints.Where(endpoint => AuthorizeData(endpoint).Count(IsRolePolicy) > 1).SelectMany(Routes);
+
     /// <summary>The host's endpoints, without the test modules.</summary>
     private IEnumerable<RouteEndpoint> HostEndpoints() => api.Services
         .GetRequiredService<EndpointDataSource>()
@@ -239,8 +318,9 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
     private static IReadOnlyList<IAuthorizeData> AuthorizeData(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
 
-    private static bool HasRolePolicy(RouteEndpoint endpoint) =>
-        AuthorizeData(endpoint).Any(data => data.Policy is { } policy && Policies.Roles.ContainsKey(policy));
+    private static bool HasRolePolicy(RouteEndpoint endpoint) => AuthorizeData(endpoint).Any(IsRolePolicy);
+
+    private static bool IsRolePolicy(IAuthorizeData data) => data.Policy is { } policy && Policies.Roles.ContainsKey(policy);
 
     /// <summary>
     /// <c>"GET /api/v1/me"</c>, one per method, or <c>"*"</c> for any. A module's <c>""</c> endpoint has a trailing slash
@@ -261,5 +341,11 @@ public class EndpointCoverageTests(FixFlowApiFactory api)
         }
 
         return (RouteEndpoint)builder.Build();
+    }
+
+    /// <summary>An attribute's requirements, as an <see cref="IAuthorizationRequirementData"/> attribute adds them.</summary>
+    private sealed class ManagerRequirementData : IAuthorizationRequirementData
+    {
+        public IEnumerable<IAuthorizationRequirement> GetRequirements() => [new RolesAuthorizationRequirement(["Manager"])];
     }
 }

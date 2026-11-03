@@ -117,6 +117,12 @@ Breaking these is a bug even if tests pass.
 5. **Keep docs in sync:** a changed decision → new ADR in `docs/adr/` + update the relevant `ARCHITECTURE.md` row.
    Don't update docs for routine code changes.
 6. **Commits:** conventional commits (`feat(work-orders): ...`); small and focused. Ask before commit. Don't commit/push unless asked.
+7. **Skills** — load via the Skill tool, don't wait to be asked:
+   - Always, at session start: `using-superpowers` and `ponytail` (full).
+   - Backend C# changes → `dotnet-best-practices`. React changes → `vercel-react-best-practices`.
+   - New or reshaped UI → `frontend-design` (within MUI + theme tokens).
+   - Bug, test failure or unexpected behavior → `systematic-debugging` before proposing a fix.
+   - This file wins over any skill: `ponytail`'s "smallest change" still includes every test in item 3.
 
 ---
 

@@ -118,11 +118,12 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 
 ```csharp
 // endpoint: role-level (Policies, API) → 403
-group.MapPost("/{id:guid}/assign", Assign).RequireAuthorization(Policies.CanAssignWorkOrders);
+group.MapPost("/{id:guid}/start", Start).RequireAuthorization(Policies.CanWorkOnJobs);
 
-// handler: record-level (IResourceAuthorizer, Application) → 404
-var wo = await db.WorkOrders.FirstOrDefaultAsync(w => w.Id == cmd.Id, ct);
-if (wo is null || !await authz.IsAllowedAsync(wo, WorkOrderOps.Assign, ct))
+// handler: record-level (IResourceAuthorizer, Application) → 404. Load through VisibleTo, so a record the caller
+// can't see is a 404 before any operation check
+var wo = await db.WorkOrders.VisibleTo(user).FirstOrDefaultAsync(w => w.Id == cmd.Id, ct);
+if (wo is null || !await authz.IsAllowedAsync(wo, WorkOrderOps.Start, ct))
     return Result.NotFound();
 
 // lists and details
@@ -164,9 +165,10 @@ var items = await db.WorkOrders.VisibleTo(user).Where(...).Select(...).ToPageAsy
   or repeated header → 400; any miss → a bare 404; an anonymous caller passes through to the 401.
 - Handlers, interceptors, query filters and authorization handlers read the org and roles **only** from `ICurrentUser`
   (`OrganizationId`, `Roles`). Never read them from `User` entities, request bodies or route values. `Roles` is empty
-  without an organization context and while a trusted scope is open. `HttpCurrentUser` reads both only from the
-  organization context's identity (`OrganizationContext.AuthenticationType`): the cookie's identity carries the claims
-  stored with the account.
+  without an organization context and while a trusted scope is open. `HttpCurrentUser` and the request log context
+  read the context only through `OrganizationContext.FindIdentity` (exactly one identity of its type, or none), and
+  the trusted scope's guard through `HasAnyIdentity`: the cookie's identity carries the claims stored with the
+  account. Never search the whole principal for an organization or role claim.
 - Every endpoint under `/api/v1` needs an organization: `MapFixFlowApi` puts `.RequireOrganization()` on the root
   group. Organization-less endpoints (`/me*`, auth, `POST /organizations`, T3.2's invite lookup and acceptance) call
   `.WithoutOrganization()` on their group or themselves (the last metadata wins), get no context even when the header
