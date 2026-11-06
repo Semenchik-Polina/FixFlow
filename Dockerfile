@@ -6,7 +6,7 @@
 
 # --- SPA -------------------------------------------------------------------------------------------------------------
 # glibc, like the CI runner, so npm ci installs the same native build packages
-FROM node:24.22.0-trixie-slim AS web
+FROM node:24.22.1-trixie-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json web/.npmrc ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
