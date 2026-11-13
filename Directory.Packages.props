@@ -77,7 +77,7 @@
   <!-- Keep in step with Microsoft.AspNetCore.Mvc.Testing -->
   <ItemGroup Label="OpenAPI">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">
