@@ -100,6 +100,14 @@ jobs:
       - name: Generate the API client
         run: npm run gen:api
 
+      - name: Generate the API client
+        run: |
+          npm run gen:api
+          echo "Generated API client diff:"
+          git diff --no-ext-diff --unified=3 -- src/api/generated
+          echo "Generated API client status:"
+          git status --short -- src/api/generated
+
       - name: Generated API client is up to date
         run: |
           if [ -n "$(git status --porcelain -- src/api/generated)" ]; then
