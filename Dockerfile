@@ -6,7 +6,7 @@
 
 # --- SPA -------------------------------------------------------------------------------------------------------------
 # glibc, like the CI runner, so npm ci installs the same native build packages
-FROM node:24.22.0-trixie-slim AS web
+FROM node:24.22.3-trixie-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json web/.npmrc ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
@@ -15,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- API and migrations bundle ---------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.404-noble AS build
 WORKDIR /src
 # The build-time OpenAPI document starts the app; CI checks the committed one (plan P9)
 ENV OpenApiGenerateDocuments=false
@@ -39,14 +39,14 @@ RUN Database__Password=design-time-placeholder dotnet ef migrations bundle --con
     --project src/FixFlow.Infrastructure --startup-project src/FixFlow.API --output /out/efbundle
 
 # --- Runtime images --------------------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-noble AS migrate
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.15-noble AS migrate
 WORKDIR /app
 COPY --from=bundle /out/efbundle ./
 USER $APP_UID
 # Reads the API's configuration (connection string, Database__Password) from the environment
 ENTRYPOINT ["./efbundle"]
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-noble AS api
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.15-noble AS api
 # curl only for the Compose healthcheck on /health/ready
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \

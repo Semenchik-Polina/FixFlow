@@ -42,8 +42,10 @@ FixFlow.API/Endpoints/WorkOrderEndpoints.cs   # IEndpointModule, Prefix "/work-o
 - A module implements `IEndpointModule` and is registered in `Program.cs` with `AddEndpointModule<T>()`;
   `MapFixFlowApi()` maps it under `/api/v1` in its own group.
 - Endpoints are thin: bind → `sender.Send(command)` → `.ToOk()` / `.ToCreated()` (201, no `Location` until the
-  resource has a GET) / `.ToAccepted()` (202, no `Location`) / `.ToNoContent()` (`ResultExtensions`), which map the
-  handler's `Result` to `TypedResults`. No business logic in endpoints.
+  resource has a GET) / `.ToCreatedAtRoute("GetProperty", p => new { id = p.Id })` (201 with the GET's `Location`) /
+  `.ToAccepted()` (202, no `Location`) / `.ToNoContent()` (`ResultExtensions`), which map the handler's `Result` to
+  `TypedResults`. No business logic in endpoints. Ids come from the route: the body binds to a record without them,
+  and the endpoint builds the command (`PropertyEndpoints`).
 - Handlers return `Result<T>` / `Result`: `Result.NotFound()` → 404, `Result.Unprocessable(detail)` or
   `Result.FieldError(field, message)` → 422. `DomainException` (422), `ConcurrencyConflictException` (409) and
   validation failures (400, from the MediatR pipeline) are thrown and turned into Problem Details; don't catch them.

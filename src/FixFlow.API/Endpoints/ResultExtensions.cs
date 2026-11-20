@@ -14,9 +14,21 @@ public static class ResultExtensions
     public static Results<Ok<T>, ProblemHttpResult> ToOk<T>(this Result<T> result) =>
         result.IsSuccess ? TypedResults.Ok(result.Value) : result.Error.ToProblem();
 
-    /// <summary>A 201 with the new resource and no <c>Location</c>, for a resource without a GET endpoint yet.</summary>
+    /// <summary>
+    /// A 201 with the new resource and no <c>Location</c>, for a resource without a GET endpoint yet; one with a GET
+    /// takes <see cref="ToCreatedAtRoute{T}"/>.
+    /// </summary>
     public static Results<Created<T>, ProblemHttpResult> ToCreated<T>(this Result<T> result) =>
         result.IsSuccess ? TypedResults.Created((string?)null, result.Value) : result.Error.ToProblem();
+
+    /// <summary>A 201 with the new resource, and its <c>Location</c>: the GET endpoint named <paramref name="routeName"/>.</summary>
+    /// <param name="routeName">The GET endpoint's <c>WithName</c>.</param>
+    /// <param name="routeValues">That endpoint's route values for the new resource: <c>p => new { id = p.Id }</c>.</param>
+    public static Results<CreatedAtRoute<T>, ProblemHttpResult> ToCreatedAtRoute<T>(
+        this Result<T> result, string routeName, Func<T, object> routeValues) =>
+        result.IsSuccess
+            ? TypedResults.CreatedAtRoute(result.Value, routeName, routeValues(result.Value))
+            : result.Error.ToProblem();
 
     public static Results<NoContent, ProblemHttpResult> ToNoContent(this Result result) =>
         result.IsSuccess ? TypedResults.NoContent() : result.Error.ToProblem();

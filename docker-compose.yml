@@ -50,7 +50,7 @@ services:
       start_period: 30s
 
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    image: mcr.microsoft.com/azure-storage/azurite:3.38.0
     # Blob service only. 0.0.0.0 is the listen address inside the container; the host port is on 127.0.0.1.
     # No AZURITE_ACCOUNTS: the well-known development account keeps account keys out of the repo.
     command:
@@ -72,7 +72,7 @@ services:
       start_period: 10s
 
   mailpit:
-    image: axllent/mailpit:v1.32.0
+    image: axllent/mailpit:v1.34.0
     environment:
       MP_DATABASE: /data/mailpit.db
     ports:
@@ -88,7 +88,7 @@ services:
       start_period: 10s
 
   seq:
-    image: datalust/seq:2026.1.17473
+    image: datalust/seq:2026.1.17526
     environment:
       ACCEPT_EULA: "Y"
       # Applied only on the first start with an empty volume; `docker compose down -v` to reset

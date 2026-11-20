@@ -50,6 +50,13 @@ public sealed class Unit : AggregateRoot, IOrganizationOwned, ISoftDeletable, IA
         return new Unit(propertyId, DomainText.Required(name, NameMaxLength, "A unit's name"));
     }
 
+    /// <summary>
+    /// Changes its name, with the checks of <see cref="Create"/>. Whether another unit has it is the database's job.
+    /// </summary>
+    /// <param name="name">Trimmed; required, at most <see cref="NameMaxLength"/> characters, no control characters.</param>
+    /// <exception cref="DomainException">The name isn't valid; nothing is changed.</exception>
+    public void Rename(string name) => Name = DomainText.Required(name, NameMaxLength, "A unit's name");
+
     /// <summary>Hides the unit from every query (soft delete); its name can then be used again.</summary>
     /// <exception cref="DomainException">The unit is already archived.</exception>
     public void Archive(Instant at)

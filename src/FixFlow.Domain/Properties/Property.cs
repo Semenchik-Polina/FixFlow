@@ -12,14 +12,7 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
 {
     public const int NameMaxLength = 100;
 
-    private Property(string name, Address address, string timeZoneId)
-    {
-        Name = name;
-        Address = address;
-        TimeZoneId = timeZoneId;
-    }
-
-    // For EF Core
+    // For EF Core, and for Create, which fills it through Update
     private Property()
     {
         Name = "";
@@ -53,6 +46,16 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
     /// <exception cref="DomainException">The name or the time zone isn't valid.</exception>
     public static Property Create(string name, Address address, string timeZoneId)
     {
+        var property = new Property();
+        property.Update(name, address, timeZoneId);
+        return property;
+    }
+
+    /// <summary>Replaces the name, the address and the time zone, with the checks of <see cref="Create"/>.</summary>
+    /// <inheritdoc cref="Create" path="/param"/>
+    /// <exception cref="DomainException">The name or the time zone isn't valid; nothing is changed.</exception>
+    public void Update(string name, Address address, string timeZoneId)
+    {
         var validName = DomainText.Required(name, NameMaxLength, "A property's name");
         ArgumentNullException.ThrowIfNull(address);
 
@@ -61,7 +64,9 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
             throw new DomainException(timeZoneError);
         }
 
-        return new Property(validName, address, timeZoneId);
+        Name = validName;
+        Address = address;
+        TimeZoneId = timeZoneId;
     }
 
     /// <summary>Hides the property from every query (soft delete). Its units are archived separately.</summary>
