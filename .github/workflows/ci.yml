@@ -97,8 +97,8 @@ jobs:
         run: npm audit --audit-level=high
 
       # The backend job keeps openapi.json in step with the API; this keeps the client in step with openapi.json
-      - name: Generate the API client
-        run: npm run gen:api
+      # - name: Generate the API client
+      #   run: npm run gen:api
 
       - name: Generate the API client
         run: |
