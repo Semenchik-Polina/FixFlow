@@ -20,17 +20,28 @@ import type {
   LogInCommand,
   MeResponse,
   OrganizationCreated,
+  PagedResultOfPropertyResponse,
+  PagedResultOfUnitResponse,
+  PropertyRequest,
+  PropertyResponse,
   ResetPasswordCommand,
-  SignUpCommand
+  SignUpCommand,
+  UnitRequest,
+  UnitResponse
 } from '../model';
 
 import {
   getCreateOrganizationResponseMock,
+  getCreatePropertyResponseMock,
+  getCreateUnitResponseMock,
   getGetMeResponseMock,
+  getGetPropertyResponseMock,
+  getListPropertiesResponseMock,
+  getListUnitsResponseMock,
   getSignUpResponseMock
 } from './fixflow-api.faker';
 
-export { getSignUpResponseMock, getGetMeResponseMock, getCreateOrganizationResponseMock } from './fixflow-api.faker';
+export { getSignUpResponseMock, getGetMeResponseMock, getCreateOrganizationResponseMock, getListPropertiesResponseMock, getCreatePropertyResponseMock, getGetPropertyResponseMock, getListUnitsResponseMock, getCreateUnitResponseMock } from './fixflow-api.faker';
 
 
 export const getSignUpMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<HttpResponseResolver<PathParams, SignUpCommand>>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
@@ -128,6 +139,106 @@ export const getCreateOrganizationMockHandler = (overrideResponse?: Organization
       })
   }, options)
 }
+
+export const getListPropertiesMockHandler = (overrideResponse?: PagedResultOfPropertyResponse | ((info: Parameters<HttpResponseResolver>[0]) => Promise<PagedResultOfPropertyResponse> | PagedResultOfPropertyResponse), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/properties', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListPropertiesResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getCreatePropertyMockHandler = (overrideResponse?: PropertyResponse | ((info: Parameters<HttpResponseResolver<PathParams, PropertyRequest>>[0]) => Promise<PropertyResponse> | PropertyResponse), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, PropertyRequest>('*/api/v1/properties', async (info: Parameters<HttpResponseResolver<PathParams, PropertyRequest>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCreatePropertyResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getGetPropertyMockHandler = (overrideResponse?: PropertyResponse | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<PropertyResponse> | PropertyResponse), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/v1/properties/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetPropertyResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getUpdatePropertyMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }, PropertyRequest>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, PropertyRequest>('*/api/v1/properties/:id', async (info: Parameters<HttpResponseResolver<{ id: string }, PropertyRequest>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getArchivePropertyMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/v1/properties/:id/archive', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getListUnitsMockHandler = (overrideResponse?: PagedResultOfUnitResponse | ((info: Parameters<HttpResponseResolver<{ propertyId: string }>>[0]) => Promise<PagedResultOfUnitResponse> | PagedResultOfUnitResponse), options?: RequestHandlerOptions) => {
+  return http.get<{ propertyId: string }>('*/api/v1/properties/:propertyId/units', async (info: Parameters<HttpResponseResolver<{ propertyId: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListUnitsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getCreateUnitMockHandler = (overrideResponse?: UnitResponse | ((info: Parameters<HttpResponseResolver<{ propertyId: string }, UnitRequest>>[0]) => Promise<UnitResponse> | UnitResponse), options?: RequestHandlerOptions) => {
+  return http.post<{ propertyId: string }, UnitRequest>('*/api/v1/properties/:propertyId/units', async (info: Parameters<HttpResponseResolver<{ propertyId: string }, UnitRequest>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCreateUnitResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getRenameUnitMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ propertyId: string; unitId: string }, UnitRequest>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.put<{ propertyId: string; unitId: string }, UnitRequest>('*/api/v1/properties/:propertyId/units/:unitId', async (info: Parameters<HttpResponseResolver<{ propertyId: string; unitId: string }, UnitRequest>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getArchiveUnitMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ propertyId: string; unitId: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ propertyId: string; unitId: string }>('*/api/v1/properties/:propertyId/units/:unitId/archive', async (info: Parameters<HttpResponseResolver<{ propertyId: string; unitId: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
 export const getFixflowApiMock = () => [
   getSignUpMockHandler(),
   getLogInMockHandler(),
@@ -137,5 +248,14 @@ export const getFixflowApiMock = () => [
   getGetMeMockHandler(),
   getChangePasswordMockHandler(),
   getChangeNameMockHandler(),
-  getCreateOrganizationMockHandler()
+  getCreateOrganizationMockHandler(),
+  getListPropertiesMockHandler(),
+  getCreatePropertyMockHandler(),
+  getGetPropertyMockHandler(),
+  getUpdatePropertyMockHandler(),
+  getArchivePropertyMockHandler(),
+  getListUnitsMockHandler(),
+  getCreateUnitMockHandler(),
+  getRenameUnitMockHandler(),
+  getArchiveUnitMockHandler()
 ]

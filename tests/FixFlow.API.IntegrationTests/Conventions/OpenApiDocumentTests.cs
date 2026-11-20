@@ -47,10 +47,13 @@ public class OpenApiDocumentTests(FixFlowApiFactory api)
     {
         var document = await ReadDocumentAsync();
 
-        // The paged result's counts: a plain integer, not "integer or numeric string"
+        // Every paged result's counts: a plain integer, not "integer or numeric string"
         var paged = document.GetProperty("components").GetProperty("schemas").EnumerateObject()
-            .Single(schema => schema.Name.StartsWith("PagedResultOf", StringComparison.Ordinal)).Value;
-        Assert.Equal(["integer"], TypesOf(paged.GetProperty("properties").GetProperty("totalCount")));
+            .Where(schema => schema.Name.StartsWith("PagedResultOf", StringComparison.Ordinal))
+            .ToList();
+        Assert.NotEmpty(paged);
+        Assert.All(paged, schema =>
+            Assert.Equal(["integer"], TypesOf(schema.Value.GetProperty("properties").GetProperty("totalCount"))));
 
         // Anywhere in the document, including query parameters: the generated client would type them number | string
         Assert.Empty(NumericSchemasAcceptingStrings(document, "#"));

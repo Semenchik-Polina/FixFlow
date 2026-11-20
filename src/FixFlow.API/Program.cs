@@ -54,6 +54,7 @@ try
     builder.Services.AddEndpointModule<AuthEndpoints>();
     builder.Services.AddEndpointModule<MeEndpoints>();
     builder.Services.AddEndpointModule<OrganizationEndpoints>();
+    builder.Services.AddEndpointModule<PropertyEndpoints>();
 
     var app = builder.Build();
 
