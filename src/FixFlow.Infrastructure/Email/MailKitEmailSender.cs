@@ -3,6 +3,7 @@ using MailKit.Net.Smtp;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using MimeKit.Utils;
+using MailKit;
 
 namespace FixFlow.Infrastructure.Email;
 
