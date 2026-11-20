@@ -50,7 +50,7 @@ services:
       start_period: 30s
 
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    image: mcr.microsoft.com/azure-storage/azurite:3.38.0
     # Blob service only. 0.0.0.0 is the listen address inside the container; the host port is on 127.0.0.1.
     # No AZURITE_ACCOUNTS: the well-known development account keeps account keys out of the repo.
     command:
