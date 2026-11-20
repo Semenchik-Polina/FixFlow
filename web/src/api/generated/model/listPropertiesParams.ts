@@ -4,7 +4,7 @@
  */
 
 export type ListPropertiesParams = {
-page?: number;
-pageSize?: number;
-name?: string;
+  page?: number;
+  pageSize?: number;
+  name?: string;
 };
