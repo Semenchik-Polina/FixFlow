@@ -97,16 +97,8 @@ jobs:
         run: npm audit --audit-level=high
 
       # The backend job keeps openapi.json in step with the API; this keeps the client in step with openapi.json
-      # - name: Generate the API client
-      #   run: npm run gen:api
-
       - name: Generate the API client
-        run: |
-          npm run gen:api
-          echo "Generated API client diff:"
-          git diff --no-ext-diff --unified=3 -- src/api/generated
-          echo "Generated API client status:"
-          git status --short -- src/api/generated
+        run: npm run gen:api
 
       - name: Generated API client is up to date
         run: |
