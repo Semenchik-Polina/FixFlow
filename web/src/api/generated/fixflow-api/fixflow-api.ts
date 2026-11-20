@@ -798,7 +798,6 @@ export function useListProperties<TData = Awaited<ReturnType<typeof listProperti
  params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>>, request?: SecondParameter<typeof http>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
 export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
  params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>>, request?: SecondParameter<typeof http>}
  , queryClient?: QueryClient
@@ -826,25 +825,11 @@ export const getCreatePropertyUrl = () => {
 
 export const createProperty = async (propertyRequest: PropertyRequest, options?: Parameters<typeof http>[1]): Promise<PropertyResponse> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return http<PropertyResponse>(getCreatePropertyUrl(),
+  return http<PropertyResponse>(getCreatePropertyUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(propertyRequest)
   }
 );}
@@ -973,7 +958,6 @@ export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, 
  id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>>, request?: SecondParameter<typeof http>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
 export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(
  id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>>, request?: SecondParameter<typeof http>}
  , queryClient?: QueryClient
@@ -1002,25 +986,11 @@ export const getUpdatePropertyUrl = (id: string,) => {
 export const updateProperty = async (id: string,
     propertyRequest: PropertyRequest, options?: Parameters<typeof http>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return http<void>(getUpdatePropertyUrl(id),
+  return http<void>(getUpdatePropertyUrl(id),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(propertyRequest)
   }
 );}
@@ -1230,7 +1200,6 @@ export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TErr
     params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof http>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
 export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
  propertyId: string,
     params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof http>}
@@ -1260,25 +1229,11 @@ export const getCreateUnitUrl = (propertyId: string,) => {
 export const createUnit = async (propertyId: string,
     unitRequest: UnitRequest, options?: Parameters<typeof http>[1]): Promise<UnitResponse> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return http<UnitResponse>(getCreateUnitUrl(propertyId),
+  return http<UnitResponse>(getCreateUnitUrl(propertyId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(unitRequest)
   }
 );}
@@ -1344,25 +1299,11 @@ export const renameUnit = async (propertyId: string,
     unitId: string,
     unitRequest: UnitRequest, options?: Parameters<typeof http>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return http<void>(getRenameUnitUrl(propertyId,unitId),
+  return http<void>(getRenameUnitUrl(propertyId,unitId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(unitRequest)
   }
 );}
