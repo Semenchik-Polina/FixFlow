@@ -66,6 +66,47 @@ public class PropertyTests
     }
 
     [Fact]
+    public void Update_ValidInput_ReplacesEveryField()
+    {
+        var property = Property.Create("Riverside", _address, "Europe/Warsaw");
+        var address = Address.Create("Harbour Road 2", "Floor 3", "Shelbyville", null, "NO");
+
+        property.Update(" Harbour View ", address, "Europe/Oslo");
+
+        Assert.Equal("Harbour View", property.Name);
+        Assert.Same(address, property.Address);
+        // Stored as written, never canonicalized to Europe/Berlin
+        Assert.Equal("Europe/Oslo", property.TimeZoneId);
+    }
+
+    [Theory]
+    [InlineData("", "Europe/Oslo")]
+    [InlineData("Harbour\nView", "Europe/Oslo")]
+    [InlineData("Harbour View", "Central European Standard Time")]
+    [InlineData("Harbour View", "Etc/GMT-2")]
+    public void Update_InvalidInput_ThrowsAndChangesNothing(string name, string timeZoneId)
+    {
+        var property = Property.Create("Riverside", _address, "Europe/Warsaw");
+        var address = Address.Create("Harbour Road 2", null, "Shelbyville", null, "NO");
+
+        Assert.Throws<DomainException>(() => property.Update(name, address, timeZoneId));
+
+        Assert.Equal("Riverside", property.Name);
+        Assert.Same(_address, property.Address);
+        Assert.Equal("Europe/Warsaw", property.TimeZoneId);
+    }
+
+    [Fact]
+    public void Update_NullArgument_Throws()
+    {
+        var property = Property.Create("Riverside", _address, "Europe/Warsaw");
+
+        Assert.Throws<ArgumentNullException>(() => property.Update(null!, _address, "Europe/Warsaw"));
+        Assert.Throws<ArgumentNullException>(() => property.Update("Riverside", null!, "Europe/Warsaw"));
+        Assert.Throws<ArgumentNullException>(() => property.Update("Riverside", _address, null!));
+    }
+
+    [Fact]
     public void Archive_ActiveProperty_SetsDeletedAt()
     {
         var property = Property.Create("Riverside", _address, "Europe/Warsaw");

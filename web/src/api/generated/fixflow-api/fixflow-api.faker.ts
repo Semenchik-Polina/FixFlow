@@ -11,7 +11,11 @@ import {
 } from '../model';
 import type {
   MeResponse,
-  OrganizationCreated
+  OrganizationCreated,
+  PagedResultOfPropertyResponse,
+  PagedResultOfUnitResponse,
+  PropertyResponse,
+  UnitResponse
 } from '../model';
 
 
@@ -20,4 +24,14 @@ export const getSignUpResponseMock = (overrideResponse: Partial<Extract<Organiza
 export const getGetMeResponseMock = (overrideResponse: Partial<Extract<MeResponse, object>> = {}): MeResponse => ({id: faker.string.uuid(), email: faker.string.alpha({length: {min: 10, max: 20}}), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), memberships: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({organizationId: faker.string.uuid(), organizationName: faker.string.alpha({length: {min: 10, max: 20}}), slug: faker.string.alpha({length: {min: 10, max: 20}}), roles: faker.helpers.arrayElements(Object.values(Role))})), ...overrideResponse})
 
 export const getCreateOrganizationResponseMock = (overrideResponse: Partial<Extract<OrganizationCreated, object>> = {}): OrganizationCreated => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}}), slug: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
+
+export const getListPropertiesResponseMock = (overrideResponse: Partial<Extract<PagedResultOfPropertyResponse, object>> = {}): PagedResultOfPropertyResponse => ({items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}}), address: {line1: faker.string.alpha({length: {min: 10, max: 20}}), line2: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), city: faker.string.alpha({length: {min: 10, max: 20}}), postalCode: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), countryCode: faker.string.alpha({length: {min: 10, max: 20}})}, timeZone: faker.string.alpha({length: {min: 10, max: 20}})})), page: faker.number.int(), pageSize: faker.number.int(), totalCount: faker.number.int(), ...overrideResponse})
+
+export const getCreatePropertyResponseMock = (overrideResponse: Partial<Extract<PropertyResponse, object>> = {}): PropertyResponse => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}}), address: {line1: faker.string.alpha({length: {min: 10, max: 20}}), line2: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), city: faker.string.alpha({length: {min: 10, max: 20}}), postalCode: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), countryCode: faker.string.alpha({length: {min: 10, max: 20}})}, timeZone: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
+
+export const getGetPropertyResponseMock = (overrideResponse: Partial<Extract<PropertyResponse, object>> = {}): PropertyResponse => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}}), address: {line1: faker.string.alpha({length: {min: 10, max: 20}}), line2: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), city: faker.string.alpha({length: {min: 10, max: 20}}), postalCode: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), countryCode: faker.string.alpha({length: {min: 10, max: 20}})}, timeZone: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
+
+export const getListUnitsResponseMock = (overrideResponse: Partial<Extract<PagedResultOfUnitResponse, object>> = {}): PagedResultOfUnitResponse => ({items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), propertyId: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), page: faker.number.int(), pageSize: faker.number.int(), totalCount: faker.number.int(), ...overrideResponse})
+
+export const getCreateUnitResponseMock = (overrideResponse: Partial<Extract<UnitResponse, object>> = {}): UnitResponse => ({id: faker.string.uuid(), propertyId: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
 

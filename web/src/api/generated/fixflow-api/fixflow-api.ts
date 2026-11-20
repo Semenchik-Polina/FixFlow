@@ -27,12 +27,20 @@ import type {
   CreateOrganizationCommand,
   ForgotPasswordCommand,
   HttpValidationProblemDetails,
+  ListPropertiesParams,
+  ListUnitsParams,
   LogInCommand,
   MeResponse,
   OrganizationCreated,
+  PagedResultOfPropertyResponse,
+  PagedResultOfUnitResponse,
   ProblemDetails,
+  PropertyRequest,
+  PropertyResponse,
   ResetPasswordCommand,
-  SignUpCommand
+  SignUpCommand,
+  UnitRequest,
+  UnitResponse
 } from '../model';
 
 import { http } from '../../http';
@@ -785,4 +793,773 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getCreateOrganizationMutationOptions(options), queryClient);
+    }
+    export const getListPropertiesUrl = (params?: ListPropertiesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/properties?${stringifiedParams}` : `/api/v1/properties`
+}
+
+export const listProperties = async (params?: ListPropertiesParams, options?: Parameters<typeof http>[1]): Promise<PagedResultOfPropertyResponse> => {
+
+  return http<PagedResultOfPropertyResponse>(getListPropertiesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPropertiesQueryKey = (params?: ListPropertiesParams,) => {
+    return [
+    `/api/v1/properties`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPropertiesQueryOptions = <TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPropertiesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProperties>>> = ({ signal }) => listProperties(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPropertiesQueryResult = NonNullable<Awaited<ReturnType<typeof listProperties>>>
+export type ListPropertiesQueryError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+
+
+export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ params: undefined |  ListPropertiesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProperties>>,
+          TError,
+          Awaited<ReturnType<typeof listProperties>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProperties>>,
+          TError,
+          Awaited<ReturnType<typeof listProperties>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ params?: ListPropertiesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPropertiesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getCreatePropertyUrl = () => {
+
+
+
+
+  return `/api/v1/properties`
+}
+
+export const createProperty = async (propertyRequest: PropertyRequest, options?: Parameters<typeof http>[1]): Promise<PropertyResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<PropertyResponse>(getCreatePropertyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePropertyMutationKey = () => ['createProperty'] as const;
+
+export const getCreatePropertyMutationOptions = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext> => {
+
+const mutationKey = getCreatePropertyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProperty>>, CreatePropertyMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createProperty(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof createProperty>>>
+    export type CreatePropertyMutationBody = PropertyRequest
+    export type CreatePropertyMutationError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+    export type CreatePropertyMutationVariables = {data: PropertyRequest}
+
+    export const useCreateProperty = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createProperty>>,
+        TError,
+        CreatePropertyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePropertyMutationOptions(options), queryClient);
+    }
+    export const getGetPropertyUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/properties/${id}`
+}
+
+export const getProperty = async (id: string, options?: Parameters<typeof http>[1]): Promise<PropertyResponse> => {
+
+  return http<PropertyResponse>(getGetPropertyUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPropertyQueryKey = (id: string,) => {
+    return [
+    `/api/v1/properties/${id}`
+    ] as const;
+    }
+
+
+export const getGetPropertyQueryOptions = <TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPropertyQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProperty>>> = ({ signal }) => getProperty(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPropertyQueryResult = NonNullable<Awaited<ReturnType<typeof getProperty>>>
+export type GetPropertyQueryError = ErrorType<ProblemDetails>
+
+
+export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProperty>>,
+          TError,
+          Awaited<ReturnType<typeof getProperty>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProperty>>,
+          TError,
+          Awaited<ReturnType<typeof getProperty>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<ProblemDetails>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPropertyQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getUpdatePropertyUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/properties/${id}`
+}
+
+export const updateProperty = async (id: string,
+    propertyRequest: PropertyRequest, options?: Parameters<typeof http>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<void>(getUpdatePropertyUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePropertyMutationKey = () => ['updateProperty'] as const;
+
+export const getUpdatePropertyMutationOptions = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePropertyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateProperty>>, UpdatePropertyMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateProperty(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof updateProperty>>>
+    export type UpdatePropertyMutationBody = PropertyRequest
+    export type UpdatePropertyMutationError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+    export type UpdatePropertyMutationVariables = {id: string;data: PropertyRequest}
+
+    export const useUpdateProperty = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateProperty>>,
+        TError,
+        UpdatePropertyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePropertyMutationOptions(options), queryClient);
+    }
+    export const getArchivePropertyUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/properties/${id}/archive`
+}
+
+export const archiveProperty = async (id: string, options?: Parameters<typeof http>[1]): Promise<void> => {
+
+  return http<void>(getArchivePropertyUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchivePropertyMutationKey = () => ['archiveProperty'] as const;
+
+export const getArchivePropertyMutationOptions = <TError = ErrorType<ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveProperty>>, TError,ArchivePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveProperty>>, TError,ArchivePropertyMutationVariables, TContext> => {
+
+const mutationKey = getArchivePropertyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveProperty>>, ArchivePropertyMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  archiveProperty(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchivePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof archiveProperty>>>
+
+    export type ArchivePropertyMutationError = ErrorType<ProblemDetails>
+    export type ArchivePropertyMutationVariables = {id: string}
+
+    export const useArchiveProperty = <TError = ErrorType<ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveProperty>>, TError,ArchivePropertyMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof archiveProperty>>,
+        TError,
+        ArchivePropertyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getArchivePropertyMutationOptions(options), queryClient);
+    }
+    export const getListUnitsUrl = (propertyId: string,
+    params?: ListUnitsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/properties/${propertyId}/units?${stringifiedParams}` : `/api/v1/properties/${propertyId}/units`
+}
+
+export const listUnits = async (propertyId: string,
+    params?: ListUnitsParams, options?: Parameters<typeof http>[1]): Promise<PagedResultOfUnitResponse> => {
+
+  return http<PagedResultOfUnitResponse>(getListUnitsUrl(propertyId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitsQueryKey = (propertyId: string,
+    params?: ListUnitsParams,) => {
+    return [
+    `/api/v1/properties/${propertyId}/units`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUnitsQueryOptions = <TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(propertyId: string,
+    params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitsQueryKey(propertyId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnits>>> = ({ signal }) => listUnits(propertyId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: propertyId !== null && propertyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitsQueryResult = NonNullable<Awaited<ReturnType<typeof listUnits>>>
+export type ListUnitsQueryError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+
+
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ propertyId: string,
+    params: undefined |  ListUnitsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnits>>,
+          TError,
+          Awaited<ReturnType<typeof listUnits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ propertyId: string,
+    params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnits>>,
+          TError,
+          Awaited<ReturnType<typeof listUnits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ propertyId: string,
+    params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>>(
+ propertyId: string,
+    params?: ListUnitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitsQueryOptions(propertyId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getCreateUnitUrl = (propertyId: string,) => {
+
+
+
+
+  return `/api/v1/properties/${propertyId}/units`
+}
+
+export const createUnit = async (propertyId: string,
+    unitRequest: UnitRequest, options?: Parameters<typeof http>[1]): Promise<UnitResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<UnitResponse>(getCreateUnitUrl(propertyId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unitRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateUnitMutationKey = () => ['createUnit'] as const;
+
+export const getCreateUnitMutationOptions = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext> => {
+
+const mutationKey = getCreateUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createUnit>>, CreateUnitMutationVariables> = (props) => {
+          const {propertyId,data} = props ?? {};
+
+          return  createUnit(propertyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateUnitMutationResult = NonNullable<Awaited<ReturnType<typeof createUnit>>>
+    export type CreateUnitMutationBody = UnitRequest
+    export type CreateUnitMutationError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+    export type CreateUnitMutationVariables = {propertyId: string;data: UnitRequest}
+
+    export const useCreateUnit = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createUnit>>,
+        TError,
+        CreateUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateUnitMutationOptions(options), queryClient);
+    }
+    export const getRenameUnitUrl = (propertyId: string,
+    unitId: string,) => {
+
+
+
+
+  return `/api/v1/properties/${propertyId}/units/${unitId}`
+}
+
+export const renameUnit = async (propertyId: string,
+    unitId: string,
+    unitRequest: UnitRequest, options?: Parameters<typeof http>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<void>(getRenameUnitUrl(propertyId,unitId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unitRequest)
+  }
+);}
+
+
+
+
+
+export const getRenameUnitMutationKey = () => ['renameUnit'] as const;
+
+export const getRenameUnitMutationOptions = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameUnit>>, TError,RenameUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameUnit>>, TError,RenameUnitMutationVariables, TContext> => {
+
+const mutationKey = getRenameUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameUnit>>, RenameUnitMutationVariables> = (props) => {
+          const {propertyId,unitId,data} = props ?? {};
+
+          return  renameUnit(propertyId,unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameUnitMutationResult = NonNullable<Awaited<ReturnType<typeof renameUnit>>>
+    export type RenameUnitMutationBody = UnitRequest
+    export type RenameUnitMutationError = ErrorType<HttpValidationProblemDetails | ProblemDetails>
+    export type RenameUnitMutationVariables = {propertyId: string;unitId: string;data: UnitRequest}
+
+    export const useRenameUnit = <TError = ErrorType<HttpValidationProblemDetails | ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameUnit>>, TError,RenameUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof renameUnit>>,
+        TError,
+        RenameUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRenameUnitMutationOptions(options), queryClient);
+    }
+    export const getArchiveUnitUrl = (propertyId: string,
+    unitId: string,) => {
+
+
+
+
+  return `/api/v1/properties/${propertyId}/units/${unitId}/archive`
+}
+
+export const archiveUnit = async (propertyId: string,
+    unitId: string, options?: Parameters<typeof http>[1]): Promise<void> => {
+
+  return http<void>(getArchiveUnitUrl(propertyId,unitId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveUnitMutationKey = () => ['archiveUnit'] as const;
+
+export const getArchiveUnitMutationOptions = <TError = ErrorType<ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext> => {
+
+const mutationKey = getArchiveUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveUnit>>, ArchiveUnitMutationVariables> = (props) => {
+          const {propertyId,unitId} = props ?? {};
+
+          return  archiveUnit(propertyId,unitId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveUnitMutationResult = NonNullable<Awaited<ReturnType<typeof archiveUnit>>>
+
+    export type ArchiveUnitMutationError = ErrorType<ProblemDetails>
+    export type ArchiveUnitMutationVariables = {propertyId: string;unitId: string}
+
+    export const useArchiveUnit = <TError = ErrorType<ProblemDetails>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof archiveUnit>>,
+        TError,
+        ArchiveUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getArchiveUnitMutationOptions(options), queryClient);
     }

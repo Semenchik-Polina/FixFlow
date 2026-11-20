@@ -52,6 +52,39 @@ public class UnitTests
     }
 
     [Fact]
+    public void Rename_ValidName_TrimsAndKeepsProperty()
+    {
+        var unit = Unit.Create(_propertyId, "4B");
+
+        unit.Rename(" 4C ");
+
+        Assert.Equal("4C", unit.Name);
+        Assert.Equal(_propertyId, unit.PropertyId);
+    }
+
+    [Theory]
+    [InlineData("   ", "A unit's name is required.")]
+    [InlineData("4\nC", "A unit's name can't contain line breaks or other control characters.")]
+    [InlineData("123456789012345678901234567890123456789012345678901", "A unit's name can't be longer than 50 characters.")]
+    public void Rename_InvalidName_ThrowsAndKeepsTheName(string name, string message)
+    {
+        var unit = Unit.Create(_propertyId, "4B");
+
+        var exception = Assert.Throws<DomainException>(() => unit.Rename(name));
+
+        Assert.Equal(message, exception.Message);
+        Assert.Equal("4B", unit.Name);
+    }
+
+    [Fact]
+    public void Rename_Null_Throws()
+    {
+        var unit = Unit.Create(_propertyId, "4B");
+
+        Assert.Throws<ArgumentNullException>(() => unit.Rename(null!));
+    }
+
+    [Fact]
     public void Archive_ActiveUnit_SetsDeletedAt()
     {
         var unit = Unit.Create(_propertyId, "4B");
