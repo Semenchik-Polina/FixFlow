@@ -29,7 +29,8 @@ public class PropertyPersistenceTests(FixFlowApiFactory api)
     public async Task Property_AddressWithoutOptionalParts_RoundTripsThemAsNull()
     {
         var owner = await InNewOrganizationAsync();
-        var property = await SavePropertyAsync(owner, Address.Create("Main Street 1", null, "Springfield", null, "IE"));
+        var property = await SavePropertyAsync(
+            owner, Address.Create("Main Street 1", null, "Springfield", null, "IE"), "Europe/Dublin");
 
         await using var reader = api.Persistence.CreateScope(owner);
         var saved = await reader.Db.Properties.SingleAsync(p => p.Id == property.Id, _ct);
@@ -122,13 +123,14 @@ public class PropertyPersistenceTests(FixFlowApiFactory api)
     private async Task<TestCurrentUser> InNewOrganizationAsync() =>
         TestCurrentUser.InOrganization(await api.Persistence.SaveOrganizationAsync());
 
-    private async Task<Property> SavePropertyAsync(TestCurrentUser owner, Address? address = null)
+    private async Task<Property> SavePropertyAsync(
+        TestCurrentUser owner, Address? address = null, string timeZoneId = "Europe/Warsaw")
     {
         await using var scope = api.Persistence.CreateScope(owner);
         var property = Property.Create(
             TestData.Name("Property"),
             address ?? Address.Create("Main Street 1", null, "Springfield", "00-001", "PL"),
-            "Europe/Warsaw");
+            timeZoneId);
         scope.Db.Properties.Add(property);
         await scope.Db.SaveChangesAsync(_ct);
         return property;

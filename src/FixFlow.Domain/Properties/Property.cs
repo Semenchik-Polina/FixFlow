@@ -42,8 +42,9 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
     /// <summary>A property of the request's organization: persistence sets <see cref="OrganizationId"/>.</summary>
     /// <param name="name">Trimmed; required, at most <see cref="NameMaxLength"/> characters, no control characters.</param>
     /// <param name="address">See <see cref="Address.Create"/>.</param>
-    /// <param name="timeZoneId">See <see cref="PropertyTimeZone.IsValid"/>.</param>
-    /// <exception cref="DomainException">The name or the time zone isn't valid.</exception>
+    /// <param name="timeZoneId">See <see cref="PropertyTimeZone.IsValid"/>; one of the address's country's zones
+    /// (<see cref="PropertyTimeZone.IsValidFor"/>).</param>
+    /// <exception cref="DomainException">The name or the time zone isn't valid, or the zone isn't the country's.</exception>
     public static Property Create(string name, Address address, string timeZoneId)
     {
         var property = new Property();
@@ -53,7 +54,8 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
 
     /// <summary>Replaces the name, the address and the time zone, with the checks of <see cref="Create"/>.</summary>
     /// <inheritdoc cref="Create" path="/param"/>
-    /// <exception cref="DomainException">The name or the time zone isn't valid; nothing is changed.</exception>
+    /// <exception cref="DomainException">The name or the time zone isn't valid, or the zone isn't the country's; nothing
+    /// is changed.</exception>
     public void Update(string name, Address address, string timeZoneId)
     {
         var validName = DomainText.Required(name, NameMaxLength, "A property's name");
@@ -62,6 +64,11 @@ public sealed class Property : AggregateRoot, IOrganizationOwned, ISoftDeletable
         if (!PropertyTimeZone.IsValid(timeZoneId, out var timeZoneError))
         {
             throw new DomainException(timeZoneError);
+        }
+
+        if (!PropertyTimeZone.IsValidFor(timeZoneId, address.CountryCode, out var countryError))
+        {
+            throw new DomainException(countryError);
         }
 
         Name = validName;

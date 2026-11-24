@@ -13,6 +13,6 @@ public sealed class CreatePropertyValidator : AbstractValidator<CreatePropertyCo
             .PropertyName()
             .OverridePropertyName(nameof(CreatePropertyCommand.Name));
         RuleFor(command => command.Address).NotNull().SetValidator(new PropertyAddressValidator());
-        RuleFor(command => command.TimeZone).TimeZone();
+        RuleFor(command => command.TimeZone).TimeZone(command => command.Address?.CountryCode);
     }
 }

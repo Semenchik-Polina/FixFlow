@@ -163,6 +163,38 @@ public class PropertyEndpointsTests(FixFlowApiFactory api)
     }
 
     [Fact]
+    public async Task CreateAndUpdateProperty_ZoneOfAnotherCountry_Return400WithTheCountryRule()
+    {
+        using var client = await AdminAsync();
+        var existing = await client.CreatePropertyAsync();
+        var invalid = TestData.Property() with { TimeZone = "America/New_York" };
+        Assert.False(PropertyTimeZone.IsValidFor(invalid.TimeZone, invalid.Address!.CountryCode, out var expected));
+
+        using var created = await client.PostAsJsonAsync(PropertiesPath, invalid, _ct);
+        using var updated = await client.PutAsJsonAsync(PropertyPath(existing.Id), invalid, _ct);
+
+        Assert.Equal([expected], (await created.ReadProblemAsync(HttpStatusCode.BadRequest)).FieldErrors()["timeZone"]);
+        Assert.Equal([expected], (await updated.ReadProblemAsync(HttpStatusCode.BadRequest)).FieldErrors()["timeZone"]);
+        Assert.Equal([existing], (await client.ListPropertiesAsync()).Items);
+    }
+
+    [Theory]
+    [InlineData(Role.Admin)]
+    [InlineData(Role.Manager)]
+    public async Task ListPropertyTimeZones_AsAdminOrManager_ListsEveryCountrysZones(Role role)
+    {
+        using var organization = await api.OrganizationWithEveryRoleAsync();
+
+        var countries = await organization.As(role).ListPropertyTimeZonesAsync();
+
+        Assert.Equal(
+            PropertyTimeZone.ByCountry.Keys.Order(StringComparer.Ordinal),
+            countries.Select(country => country.CountryCode));
+        Assert.Equal(["Europe/Warsaw"], Assert.Single(countries, country => country.CountryCode == "PL").TimeZones);
+        Assert.Equal(["Europe/Oslo"], Assert.Single(countries, country => country.CountryCode == "NO").TimeZones);
+    }
+
+    [Fact]
     public async Task ArchiveProperty_WithUnits_Returns204AndArchivesItAndItsUnitsOnly()
     {
         using var client = api.CreateApiClient();

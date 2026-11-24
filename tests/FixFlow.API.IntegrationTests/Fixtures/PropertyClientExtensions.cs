@@ -9,6 +9,8 @@ public static class PropertyClientExtensions
 {
     public static readonly Uri PropertiesPath = new($"{EndpointModuleExtensions.ApiRoot}/properties", UriKind.Relative);
 
+    public static readonly Uri TimeZonesPath = new($"{PropertiesPath}/time-zones", UriKind.Relative);
+
     public static Uri PropertyPath(Guid id) => new($"{PropertiesPath}/{id}", UriKind.Relative);
 
     public static Uri ArchivePropertyPath(Guid id) => new($"{PropertiesPath}/{id}/archive", UriKind.Relative);
@@ -52,6 +54,10 @@ public static class PropertyClientExtensions
     /// <summary><c>GET /properties/{propertyId}/units?{query}</c>, which must succeed.</summary>
     public static Task<ListPage<UnitResponse>> ListUnitsAsync(this HttpClient client, Guid propertyId, string query = "") =>
         GetAsync<ListPage<UnitResponse>>(client, new Uri($"{UnitsPath(propertyId)}?{query}", UriKind.Relative));
+
+    /// <summary><c>GET /properties/time-zones</c>, which must succeed.</summary>
+    public static Task<CountryTimeZones[]> ListPropertyTimeZonesAsync(this HttpClient client) =>
+        GetAsync<CountryTimeZones[]>(client, TimeZonesPath);
 
     private static async Task<T> GetAsync<T>(HttpClient client, Uri path)
     {

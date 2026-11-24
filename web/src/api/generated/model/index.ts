@@ -5,6 +5,7 @@
 
 export * from './changeNameCommand';
 export * from './changePasswordCommand';
+export * from './countryTimeZones';
 export * from './createOrganizationCommand';
 export * from './forgotPasswordCommand';
 export * from './httpValidationProblemDetails';
