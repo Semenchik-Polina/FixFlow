@@ -509,7 +509,7 @@ Conventions:
 
 ### Details
 
-- Each `Property` stores an **IANA time zone id** (e.g. `Europe/Kyiv`), validated against `DateTimeZoneProviders.Tzdb`. Never fixed offsets, never Windows ids.
+- Each `Property` stores an **IANA time zone id** (e.g. `Europe/Kyiv`), validated against `DateTimeZoneProviders.Tzdb`. Never fixed offsets, never Windows ids. It must be one of the address country's zones (ADR 0008).
 - The **property's** time zone is authoritative for SLAs, business hours and appointments, not the server's or the viewer's.
 - **NodaTime** is used in the domain for SLA and scheduling. DST gaps and overlaps are resolved explicitly (`InZoneStrictly` for user input, `InZoneLeniently` for computed times).
 - `IClock` is injected everywhere; tests use `FakeClock`. No `DateTime.Now` / `DateTime.UtcNow` in domain or application code.

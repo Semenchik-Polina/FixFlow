@@ -25,5 +25,8 @@ public sealed record PropertyResponse(Guid Id, string Name, PropertyAddress Addr
 /// <summary>A unit as the unit endpoints return it.</summary>
 public sealed record UnitResponse(Guid Id, Guid PropertyId, string Name);
 
+/// <summary>A country and its time zones, as <c>GET /properties/time-zones</c> lists them.</summary>
+public sealed record CountryTimeZones(string CountryCode, string[] TimeZones);
+
 /// <summary>One page of a list endpoint.</summary>
 public sealed record ListPage<T>(T[] Items, int Page, int PageSize, int TotalCount);

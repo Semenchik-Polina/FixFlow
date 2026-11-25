@@ -24,6 +24,7 @@ import type {
 import type {
   ChangeNameCommand,
   ChangePasswordCommand,
+  CountryTimeZones,
   CreateOrganizationCommand,
   ForgotPasswordCommand,
   HttpValidationProblemDetails,
@@ -882,7 +883,100 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreatePropertyMutationOptions(options), queryClient);
     }
-    export const getGetPropertyUrl = (id: string,) => {
+    export const getListPropertyTimeZonesUrl = () => {
+
+
+
+
+  return `/api/v1/properties/time-zones`
+}
+
+export const listPropertyTimeZones = async ( options?: Parameters<typeof http>[1]): Promise<CountryTimeZones[]> => {
+
+  return http<CountryTimeZones[]>(getListPropertyTimeZonesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPropertyTimeZonesQueryKey = () => {
+    return [
+    `/api/v1/properties/time-zones`
+    ] as const;
+    }
+
+
+export const getListPropertyTimeZonesQueryOptions = <TData = Awaited<ReturnType<typeof listPropertyTimeZones>>, TError = ErrorType<ProblemDetails>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPropertyTimeZonesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPropertyTimeZones>>> = ({ signal }) => listPropertyTimeZones({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPropertyTimeZonesQueryResult = NonNullable<Awaited<ReturnType<typeof listPropertyTimeZones>>>
+export type ListPropertyTimeZonesQueryError = ErrorType<ProblemDetails>
+
+
+export function useListPropertyTimeZones<TData = Awaited<ReturnType<typeof listPropertyTimeZones>>, TError = ErrorType<ProblemDetails>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPropertyTimeZones>>,
+          TError,
+          Awaited<ReturnType<typeof listPropertyTimeZones>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPropertyTimeZones<TData = Awaited<ReturnType<typeof listPropertyTimeZones>>, TError = ErrorType<ProblemDetails>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPropertyTimeZones>>,
+          TError,
+          Awaited<ReturnType<typeof listPropertyTimeZones>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPropertyTimeZones<TData = Awaited<ReturnType<typeof listPropertyTimeZones>>, TError = ErrorType<ProblemDetails>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPropertyTimeZones<TData = Awaited<ReturnType<typeof listPropertyTimeZones>>, TError = ErrorType<ProblemDetails>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPropertyTimeZones>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPropertyTimeZonesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetPropertyUrl = (id: string,) => {
 
 
 

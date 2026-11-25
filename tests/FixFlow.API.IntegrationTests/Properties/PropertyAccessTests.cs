@@ -7,7 +7,7 @@ using static FixFlow.API.IntegrationTests.Fixtures.PropertyClientExtensions;
 namespace FixFlow.API.IntegrationTests.Properties;
 
 /// <summary>
-/// Who may use the property and unit endpoints (§8), over all nine routes: Managers and Admins only (403 for the
+/// Who may use the property and unit endpoints (§8), over all ten routes: Managers and Admins only (403 for the
 /// other roles), and in their own organization only (another organization's ids are 404s that change nothing). Every
 /// request has a valid body, so validation can't answer first.
 /// </summary>
@@ -15,7 +15,7 @@ public class PropertyAccessTests(FixFlowApiFactory api)
 {
     private static readonly string[] _routes =
     [
-        "ListProperties", "GetProperty", "CreateProperty", "UpdateProperty", "ArchiveProperty",
+        "ListProperties", "ListPropertyTimeZones", "GetProperty", "CreateProperty", "UpdateProperty", "ArchiveProperty",
         "ListUnits", "CreateUnit", "RenameUnit", "ArchiveUnit",
     ];
 
@@ -45,7 +45,7 @@ public class PropertyAccessTests(FixFlowApiFactory api)
         using var orgs = await api.TwoOrganizationsAsync();
         var property = await orgs.B.Admin.CreatePropertyAsync();
         var unit = await orgs.B.Admin.CreateUnitAsync(property.Id);
-        string[] withIds = [.. _routes.Except(["ListProperties", "CreateProperty"])];
+        string[] withIds = [.. _routes.Except(["ListProperties", "ListPropertyTimeZones", "CreateProperty"])];
 
         var statuses = await StatusesAsync(orgs.A.As(role), withIds, property.Id, unit.Id);
 
@@ -80,6 +80,17 @@ public class PropertyAccessTests(FixFlowApiFactory api)
         await response.ReadProblemAsync(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task ListPropertyTimeZones_AnotherOrganizationsSlug_Returns404()
+    {
+        using var orgs = await api.TwoOrganizationsAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, TimeZonesPath).WithOrganization(orgs.B.Slug);
+
+        using var response = await orgs.A.Manager.SendAsync(request, _ct);
+
+        await response.ReadProblemAsync(HttpStatusCode.NotFound);
+    }
+
     /// <summary>Sends each route, with these ids and a valid body, and returns its status.</summary>
     private async Task<Dictionary<string, HttpStatusCode>> StatusesAsync(
         HttpClient client, IEnumerable<string> routes, Guid propertyId, Guid unitId)
@@ -98,6 +109,7 @@ public class PropertyAccessTests(FixFlowApiFactory api)
     private static HttpRequestMessage Request(string route, Guid propertyId, Guid unitId) => route switch
     {
         "ListProperties" => new(HttpMethod.Get, PropertiesPath),
+        "ListPropertyTimeZones" => new(HttpMethod.Get, TimeZonesPath),
         "GetProperty" => new(HttpMethod.Get, PropertyPath(propertyId)),
         "CreateProperty" => WithBody(HttpMethod.Post, PropertiesPath, TestData.Property()),
         "UpdateProperty" => WithBody(HttpMethod.Put, PropertyPath(propertyId), TestData.Property()),

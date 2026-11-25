@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T2.3
+**Status:** approved 2026-10-09 · **Next task:** T3.1
 
 ## Context
 
@@ -59,6 +59,7 @@ decision in the tables below.
 | P36 | **The E2E tests are their own npm package in `tests/web-e2e/`, and run against the `full` profile with only the auth limit raised.** Specs outside `web/` can't resolve its `node_modules`, and its lint and type-check only see `web/`, so the package has its own Playwright and copies `web`'s lint tooling at the same versions (type-checked rules catch a missing `await`). Chromium ignores certificate errors: the traffic is still TLS with the dev certificate (P19), but on Linux `dev-certs --trust` reaches Chromium's store only on a best-effort basis, and this keeps local runs and CI identical. `FIXFLOW_AUTH_PERMIT_LIMIT` (default 10) sets the `full` profile's auth limit; the E2E run sets 1000 (P28). Tests whose subject isn't signup sign up through the API with Playwright's `request`, which has its own cookies, so the page starts signed out. Fake data and Mailpit reads mirror the integration tests' `TestData` and `MailpitApi` (by recipient only). `retries: 0` on 2 workers, so a flaky test fails the run. CI builds the images from the `image` job's cache and starts Compose with `--no-build`. Decided 2026-11-02, in T1.8; the details are in `docs/plans/t1.8-e2e-harness.md`. | README "Tests", `web/CLAUDE.md` §8 |
 | P37 | **A property's time zone is an IANA id that names a place; its address is structured; unit names are unique ignoring case.** `PropertyTimeZone` accepts a tzdb id, canonical or alias, matched as written, whose canonical zone is in zone.tab or zone1970.tab. `Tzdb.GetZoneOrNull` would accept NodaTime's own offset ids (`UTC+02:00`), and `Tzdb.Ids` still has `UTC` and `Etc/GMT±n`. Aliases stay because browsers' zone lists (T2.3) may still give `Europe/Kiev`. Ids are stored as written, never canonicalized, because tzdb links `Europe/Oslo` to `Europe/Berlin`. `Address` is `Line1`, `Line2?`, `City`, `PostalCode?` and an ISO 3166 alpha-2 `CountryCode` from zone.tab's countries, mapped as a complex type, and it prints none of its parts (S24). A unit's name is unique in its property among the units that aren't archived (`UniqueIndexes.UnitName`, partial on `deleted_at IS NULL`), ignoring case through the nondeterministic ICU collation `Collations.CaseInsensitive`. The collation lives in `public`, because Npgsql quotes a schema-qualified collation as one name in a column's `COLLATE`. Decided 2026-11-03, in T2.1; the details are in `docs/plans/t2.1-properties-units.md`. | `src/CLAUDE.md` §4 |
 | P38 | **Archiving a property archives its active units too, in one save at one instant; units are reached only under their property.** No unit stays active under an archived property, so later tenant links and requests can't point at one; T4.3's "open requests → 422" check runs before the cascade. The unit routes are nested (`/properties/{propertyId}/units/{unitId}`) and load the property first, because the filters don't look at a unit's property. Archiving is an action, `POST …/archive` (like `/cancel` and revoke), not `DELETE`. Ids come from the route only, and create and update share one body type per resource, for the SPA's one dialog. Properties and units have no row version, so concurrent edits are last-write-wins. Decided 2026-11-03, in T2.2. | this plan (T2.2) |
+| P39 | **A property's time zone must be one of its address country's zones** (amends P37). It matches when its canonical zone is that of one of the country's zone.tab ids, or a zone1970.tab zone naming the country, so aliases and linked zones still pass. The domain enforces it (422); the validators report it on `timeZone` (400) once the zone and the country are each valid. `GET /properties/time-zones` lists each country's zone.tab ids, and the SPA offers the chosen country's zones from it instead of the browser's list. Countries aren't restricted. Decided 2026-11-25, in T2.3. | ADR 0008 |
 
 ## Assumptions (approved with this plan)
 
@@ -509,9 +510,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - another org's ids → 404 on every route
   - Technician/Tenant → 403
 
-- [ ] **T2.3 Properties & units UI** · M
+- [x] **T2.3 Properties & units UI** · L
   Scope: a properties DataGrid (server paging), a create/edit dialog with time-zone autocomplete, a property detail page listing
-  its units, and archive confirmations.
+  its units, and archive confirmations. Planning added the rule that a property's zone is one of its country's (P39), with
+  `GET /properties/time-zones` for the dialog. Plan: `docs/plans/t2.3-properties-units-ui.md`.
   DoD: component tests cover validation and server error mapping. E2E: the admin creates a property and a unit.
 
 ## M3 — Members & invites

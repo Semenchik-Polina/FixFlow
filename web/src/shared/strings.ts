@@ -12,6 +12,7 @@ export const strings = {
     loading: 'Loading',
     reload: 'Reload',
     retry: 'Try again',
+    cancel: 'Cancel',
   },
   errors: {
     generic: 'Something went wrong',
@@ -39,6 +40,12 @@ export const strings = {
     slugLength: (min: number, max: number) => `Use ${min} to ${max} characters.`,
     slugFormat: 'Use lowercase letters, digits and single hyphens, starting and ending with a letter or digit.',
     tooLong: (max: number) => `Use at most ${max} characters.`,
+    propertyNameRequired: "Enter the property's name.",
+    streetAddressRequired: 'Enter the street address.',
+    cityRequired: 'Enter the city.',
+    countryRequired: 'Choose the country.',
+    timeZoneRequired: 'Choose the time zone.',
+    unitNameRequired: "Enter the unit's name.",
   },
   organization: {
     name: 'Organization name',
@@ -61,6 +68,7 @@ export const strings = {
     openNavigation: 'Open navigation',
     navigation: 'Main navigation',
     home: 'Home',
+    properties: 'Properties',
     // Starts with the visible name, so a voice command that says what's on screen still finds the button
     switchOrganization: (organizationName: string) => `${organizationName}, switch organization`,
     organizations: 'Organizations',

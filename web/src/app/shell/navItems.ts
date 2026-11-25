@@ -1,6 +1,7 @@
+import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
 import HomeOutlined from '@mui/icons-material/HomeOutlined';
 import type { Role } from '../../api/generated/model';
-import { hasAnyRole } from '../../shared/session/roles';
+import { hasAnyRole, propertyManagerRoles } from '../../shared/session/roles';
 import { strings } from '../../shared/strings';
 
 export interface NavItem {
@@ -13,7 +14,10 @@ export interface NavItem {
 }
 
 // Later slices add their pages here, with the roles of the route's RequireRoles
-export const navItems: readonly NavItem[] = [{ to: '.', label: strings.shell.home, Icon: HomeOutlined }];
+export const navItems: readonly NavItem[] = [
+  { to: '.', label: strings.shell.home, Icon: HomeOutlined },
+  { to: 'properties', label: strings.shell.properties, Icon: ApartmentOutlined, roles: propertyManagerRoles },
+];
 
 /** The items a user with `roles` in the current organization sees. */
 export function visibleNavItems(roles: readonly Role[], items: readonly NavItem[] = navItems): NavItem[] {

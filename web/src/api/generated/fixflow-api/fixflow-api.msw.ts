@@ -15,6 +15,7 @@ import type {
 import type {
   ChangeNameCommand,
   ChangePasswordCommand,
+  CountryTimeZones,
   CreateOrganizationCommand,
   ForgotPasswordCommand,
   LogInCommand,
@@ -37,11 +38,12 @@ import {
   getGetMeResponseMock,
   getGetPropertyResponseMock,
   getListPropertiesResponseMock,
+  getListPropertyTimeZonesResponseMock,
   getListUnitsResponseMock,
   getSignUpResponseMock
 } from './fixflow-api.faker';
 
-export { getSignUpResponseMock, getGetMeResponseMock, getCreateOrganizationResponseMock, getListPropertiesResponseMock, getCreatePropertyResponseMock, getGetPropertyResponseMock, getListUnitsResponseMock, getCreateUnitResponseMock } from './fixflow-api.faker';
+export { getSignUpResponseMock, getGetMeResponseMock, getCreateOrganizationResponseMock, getListPropertiesResponseMock, getCreatePropertyResponseMock, getListPropertyTimeZonesResponseMock, getGetPropertyResponseMock, getListUnitsResponseMock, getCreateUnitResponseMock } from './fixflow-api.faker';
 
 
 export const getSignUpMockHandler = (overrideResponse?: OrganizationCreated | ((info: Parameters<HttpResponseResolver<PathParams, SignUpCommand>>[0]) => Promise<OrganizationCreated> | OrganizationCreated), options?: RequestHandlerOptions) => {
@@ -164,6 +166,18 @@ export const getCreatePropertyMockHandler = (overrideResponse?: PropertyResponse
   }, options)
 }
 
+export const getListPropertyTimeZonesMockHandler = (overrideResponse?: CountryTimeZones[] | ((info: Parameters<HttpResponseResolver>[0]) => Promise<CountryTimeZones[]> | CountryTimeZones[]), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/properties/time-zones', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListPropertyTimeZonesResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getGetPropertyMockHandler = (overrideResponse?: PropertyResponse | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<PropertyResponse> | PropertyResponse), options?: RequestHandlerOptions) => {
   return http.get<{ id: string }>('*/api/v1/properties/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
 
@@ -251,6 +265,7 @@ export const getFixflowApiMock = () => [
   getCreateOrganizationMockHandler(),
   getListPropertiesMockHandler(),
   getCreatePropertyMockHandler(),
+  getListPropertyTimeZonesMockHandler(),
   getGetPropertyMockHandler(),
   getUpdatePropertyMockHandler(),
   getArchivePropertyMockHandler(),

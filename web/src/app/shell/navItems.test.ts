@@ -25,4 +25,13 @@ describe('visibleNavItems', () => {
   it('shows Home to every role', () => {
     expect(visibleNavItems(['Tenant'], navItems).map((item) => item.label)).toContain('Home');
   });
+
+  it.each<[Role, boolean]>([
+    ['Admin', true],
+    ['Manager', true],
+    ['Technician', false],
+    ['Tenant', false],
+  ])('shows Properties to a %s: %s', (role, shown) => {
+    expect(visibleNavItems([role], navItems).some((item) => item.label === 'Properties')).toBe(shown);
+  });
 });

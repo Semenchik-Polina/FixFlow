@@ -58,6 +58,15 @@ public class PropertyTests
     }
 
     [Fact]
+    public void Create_ZoneOfAnotherCountry_ThrowsWithTheCountryError()
+    {
+        PropertyTimeZone.IsValidFor("America/New_York", "PL", out var error);
+
+        var exception = Assert.Throws<DomainException>(() => Property.Create("Riverside", _address, "America/New_York"));
+        Assert.Equal(error, exception.Message);
+    }
+
+    [Fact]
     public void Create_NullArgument_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => Property.Create(null!, _address, "Europe/Warsaw"));
@@ -84,6 +93,7 @@ public class PropertyTests
     [InlineData("Harbour\nView", "Europe/Oslo")]
     [InlineData("Harbour View", "Central European Standard Time")]
     [InlineData("Harbour View", "Etc/GMT-2")]
+    [InlineData("Harbour View", "Europe/Warsaw")] // A zone, but not Norway's
     public void Update_InvalidInput_ThrowsAndChangesNothing(string name, string timeZoneId)
     {
         var property = Property.Create("Riverside", _address, "Europe/Warsaw");

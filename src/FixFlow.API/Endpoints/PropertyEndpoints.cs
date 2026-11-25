@@ -7,6 +7,7 @@ using FixFlow.Application.Properties.CreateProperty;
 using FixFlow.Application.Properties.CreateUnit;
 using FixFlow.Application.Properties.GetProperty;
 using FixFlow.Application.Properties.ListProperties;
+using FixFlow.Application.Properties.ListPropertyTimeZones;
 using FixFlow.Application.Properties.ListUnits;
 using FixFlow.Application.Properties.RenameUnit;
 using FixFlow.Application.Properties.UpdateProperty;
@@ -39,6 +40,12 @@ internal sealed class PropertyEndpoints : IEndpointModule
                 (await sender.Send(new ListPropertiesQuery(page, pageSize, name), ct)).ToOk())
             .WithName("ListProperties")
             .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+        // The same for every organization; {id:guid} below can't match "time-zones"
+        group.MapGet("/time-zones", async (ISender sender, CancellationToken ct) =>
+                (await sender.Send(new ListPropertyTimeZonesQuery(), ct)).ToOk())
+            .WithName("ListPropertyTimeZones")
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         group.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>

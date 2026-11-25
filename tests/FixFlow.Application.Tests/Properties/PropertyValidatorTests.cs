@@ -20,7 +20,7 @@ public class PropertyValidatorTests
         // A blank optional part is no part
         Assert.Empty(Failed("Riverside", _address with { Line2 = "  ", PostalCode = "" }, "Europe/Warsaw"));
         // An alias, as some browsers still list it
-        Assert.Empty(Failed("Riverside", _address, "Europe/Kiev"));
+        Assert.Empty(Failed("Riverside", _address with { CountryCode = "UA" }, "Europe/Kiev"));
     }
 
     [Fact]
@@ -115,6 +115,18 @@ public class PropertyValidatorTests
             .Errors);
 
         Assert.Equal("TimeZone", failure.PropertyName);
+        Assert.Equal(expected, failure.ErrorMessage);
+    }
+
+    [Fact]
+    public void Validate_ZoneOfAnotherCountry_FailsOnTimeZoneWithTheDomainsMessage()
+    {
+        Assert.False(PropertyTimeZone.IsValidFor("America/New_York", "PL", out var expected));
+
+        Assert.Equal(["TimeZone"], Failed("Riverside", _address, "America/New_York"));
+        var failure = Assert.Single(new CreatePropertyValidator()
+            .Validate(new CreatePropertyCommand("Riverside", _address, "America/New_York"))
+            .Errors);
         Assert.Equal(expected, failure.ErrorMessage);
     }
 

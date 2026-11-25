@@ -17,14 +17,35 @@ public static class PropertyValidationRules
     public static IRuleBuilderOptions<T, string?> UnitName<T>(this IRuleBuilder<T, string?> rule) =>
         rule.NotEmpty().MaximumLength(Unit.NameMaxLength).NoControlCharacters();
 
-    /// <summary><see cref="PropertyTimeZone.IsValid"/>, with its message. Taken as written: never trimmed.</summary>
-    public static IRuleBuilderOptionsConditions<T, string?> TimeZone<T>(this IRuleBuilder<T, string?> rule) =>
+    /// <summary>
+    /// <see cref="PropertyTimeZone.IsValid"/>, then <see cref="PropertyTimeZone.IsValidFor"/> the property's country,
+    /// each with its message. Taken as written: never trimmed.
+    /// </summary>
+    /// <param name="rule">The time zone's rule.</param>
+    /// <param name="countryCode">The property's country code; the zone isn't checked against a missing or invalid
+    /// one, which is the address's error.</param>
+    public static IRuleBuilderOptionsConditions<T, string?> TimeZone<T>(
+        this IRuleBuilder<T, string?> rule, Func<T, string?> countryCode) =>
         rule.NotEmpty().Custom((timeZone, context) =>
         {
             // NotEmpty reports a null
-            if (timeZone is not null && !PropertyTimeZone.IsValid(timeZone, out var error))
+            if (timeZone is null)
+            {
+                return;
+            }
+
+            if (!PropertyTimeZone.IsValid(timeZone, out var error))
             {
                 context.AddFailure(error);
+                return;
+            }
+
+            var country = countryCode(context.InstanceToValidate);
+            if (country is not null
+                && Address.IsValidCountryCode(country, out _)
+                && !PropertyTimeZone.IsValidFor(timeZone, country, out var countryError))
+            {
+                context.AddFailure(countryError);
             }
         });
 

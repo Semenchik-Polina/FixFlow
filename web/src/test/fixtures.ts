@@ -1,6 +1,6 @@
 import { HttpResponse } from 'msw';
-import { getGetMeMockHandler } from '../api/generated/fixflow-api/fixflow-api.msw';
-import type { MeResponse, MyMembership, Role } from '../api/generated/model';
+import { getGetMeMockHandler, getListPropertyTimeZonesMockHandler } from '../api/generated/fixflow-api/fixflow-api.msw';
+import type { MeResponse, MyMembership, PropertyResponse, Role, UnitResponse } from '../api/generated/model';
 import { server } from './server';
 
 // Fake data only (D23): example.test addresses, made-up names
@@ -47,4 +47,46 @@ export function problem(status: number, body: Record<string, unknown> = {}) {
 /** A validation error with field errors, keyed by the camelCase field name; a 422 for the ones only the server knows. */
 export function validationProblem(errors: Record<string, string[]>, status = 400) {
   return problem(status, { title: 'One or more validation errors occurred.', errors });
+}
+
+/** A property as the API returns it: in Poland, with its one zone. */
+export function aProperty(overrides: Partial<PropertyResponse> = {}): PropertyResponse {
+  return {
+    id: '0199b1c2-0000-7000-8000-000000000301',
+    name: 'Riverside Apartments',
+    address: { line1: '1 Test Street', line2: null, city: 'Testville', postalCode: '00-001', countryCode: 'PL' },
+    timeZone: 'Europe/Warsaw',
+    ...overrides,
+  };
+}
+
+let nextUnit = 1;
+
+/** A unit of `propertyId` named `name`, with an id of its own. */
+export function aUnit(propertyId: string, name: string): UnitResponse {
+  const number = String(nextUnit++).padStart(12, '0');
+  // 9000: apart from the memberships' 8000 ids
+  return { id: `0199b1c2-0000-7000-9000-${number}`, propertyId, name };
+}
+
+/** One page of a list endpoint, as `PagedResult` has it. */
+export function aPage<T>(items: T[], { page = 1, pageSize = 25, totalCount = items.length } = {}) {
+  return { items, page, pageSize, totalCount };
+}
+
+/**
+ * The API lists these countries and zones for the property form: Poland with one zone, the US with several. Call it
+ * after any `getGetPropertyMockHandler`: a handler added later wins, and `properties/:id` matches `time-zones` too.
+ */
+export function givenPropertyTimeZones(): void {
+  server.use(
+    getListPropertyTimeZonesMockHandler([
+      { countryCode: 'PL', timeZones: ['Europe/Warsaw'] },
+      { countryCode: 'UA', timeZones: ['Europe/Kyiv', 'Europe/Simferopol'] },
+      {
+        countryCode: 'US',
+        timeZones: ['America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/New_York'],
+      },
+    ]),
+  );
 }
