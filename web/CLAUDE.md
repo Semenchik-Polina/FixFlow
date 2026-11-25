@@ -21,8 +21,8 @@ web/src/
 │     ├─ pages/         # route components
 │     ├─ components/    # feature-only components
 │     └─ hooks/         # feature-only hooks (wrapping generated ones if needed)
-├─ shared/              # reusable components, hooks, utils (e.g. formatInstant)
-│  ├─ forms/            # rules (zod/mini), applyServerErrors, FormTextField, PasswordField
+├─ shared/              # reusable components (ConfirmDialog), hooks (useDebouncedValue), utils (e.g. formatInstant)
+│  ├─ forms/            # rules (zod/mini), applyServerErrors, FormTextField, FormAutocomplete, PasswordField
 │  ├─ routing/paths.ts  # globalPaths, orgSlugFromPath, isPublicPage
 │  └─ session/          # useCurrentUser, useCurrentOrganization, useGlobalQueryClient, hasAnyRole
 └─ api/
@@ -127,5 +127,10 @@ web/src/
   "Organization not found". A test that depends on the `X-Organization` header needs a browser router, because
   `http.ts` reads the slug from `window.location`.
 - E2E: Playwright in `tests/web-e2e/`, its own package with its own guide (`tests/web-e2e/CLAUDE.md`).
-- Run focused: `npx vitest src/features/work-orders`.
+- A page with a DataGrid: load its module in `beforeAll` (`PropertiesPage.test.tsx`). The route loads it lazily, and the
+  first load can outlast a `findBy`'s 1 s.
+- MSW: a handler added later wins, and `*/properties/:id` also matches `*/properties/time-zones`
+  (`givenPropertyTimeZones()` goes last).
+- Run focused: `npx vitest src/features/work-orders`, from PowerShell on Windows: in Git Bash the lowercase drive letter
+  loads Vitest twice ("failed to find the runner").
 - Before done: `npm run lint && npm run typecheck && npm test`.

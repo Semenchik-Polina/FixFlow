@@ -1,6 +1,6 @@
 # FixFlow MVP — Development plan
 
-**Status:** approved 2026-10-09 · **Next task:** T2.3
+**Status:** approved 2026-10-09 · **Next task:** T3.1
 
 ## Context
 
@@ -510,9 +510,10 @@ M7 and M8 don't depend on each other and can swap. Both come after the lifecycle
   - another org's ids → 404 on every route
   - Technician/Tenant → 403
 
-- [ ] **T2.3 Properties & units UI** · M
+- [x] **T2.3 Properties & units UI** · L
   Scope: a properties DataGrid (server paging), a create/edit dialog with time-zone autocomplete, a property detail page listing
-  its units, and archive confirmations.
+  its units, and archive confirmations. Planning added the rule that a property's zone is one of its country's (P39), with
+  `GET /properties/time-zones` for the dialog. Plan: `docs/plans/t2.3-properties-units-ui.md`.
   DoD: component tests cover validation and server error mapping. E2E: the admin creates a property and a unit.
 
 ## M3 — Members & invites

@@ -75,7 +75,8 @@ export function AppShell() {
               key={to}
               component={NavLink}
               to={to}
-              end
+              // Home only: other items stay selected on their pages below (`properties/:propertyId`)
+              end={to === '.'}
               onClick={() => setMobileOpen(false)}
               sx={{ '&.active': { bgcolor: 'action.selected' } }}
             >

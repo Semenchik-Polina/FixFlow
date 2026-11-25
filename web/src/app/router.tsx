@@ -4,8 +4,10 @@ import { NotFoundPage } from '../shared/components/NotFoundPage';
 import { PageLoader } from '../shared/components/PageLoader';
 import { RouteErrorPage } from '../shared/components/RouteErrorPage';
 import { globalPaths } from '../shared/routing/paths';
+import { propertyManagerRoles } from '../shared/session/roles';
 import { sessionQueryOptions } from '../shared/session/useCurrentUser';
 import { HomeRedirect } from './HomeRedirect';
+import { RequireRoles } from './shell/RequireRoles';
 
 /**
  * Global pages first; everything else lives under an organization slug (ARCHITECTURE §8). Pages load lazily.
@@ -72,6 +74,24 @@ export function createRoutes(queryClient: QueryClient): RouteObject[] {
               lazy: {
                 Component: async () => (await import('../features/dashboard/pages/DashboardPage')).DashboardPage,
               },
+            },
+            {
+              element: <RequireRoles roles={propertyManagerRoles} />,
+              children: [
+                {
+                  path: 'properties',
+                  lazy: {
+                    Component: async () => (await import('../features/properties/pages/PropertiesPage')).PropertiesPage,
+                  },
+                },
+                {
+                  path: 'properties/:propertyId',
+                  lazy: {
+                    Component: async () =>
+                      (await import('../features/properties/pages/PropertyDetailPage')).PropertyDetailPage,
+                  },
+                },
+              ],
             },
             { path: '*', Component: NotFoundPage },
           ],

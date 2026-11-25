@@ -20,6 +20,14 @@ const PASSWORD_MAX_LENGTH = 128;
 export const SLUG_MAX_LENGTH = 40;
 const SLUG_MIN_LENGTH = 3;
 const SLUG_FORMAT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** `Property.NameMaxLength`. */
+const PROPERTY_NAME_MAX_LENGTH = 100;
+/** `Address.LineMaxLength`, `Address.CityMaxLength` and `Address.PostalCodeMaxLength`. */
+const ADDRESS_LINE_MAX_LENGTH = 200;
+const CITY_MAX_LENGTH = 100;
+const POSTAL_CODE_MAX_LENGTH = 20;
+/** `Unit.NameMaxLength`. */
+const UNIT_NAME_MAX_LENGTH = 50;
 
 // One @ with something on each side and no spaces. The server checks more (a bare address), but never less, so this
 // can't turn away an address the server would take.
@@ -28,6 +36,13 @@ const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+$/;
 /** Trimmed text that must not be empty, then at most `maxLength` characters. */
 const requiredText = (message: string, maxLength: number) =>
   z.string().check(z.trim(), z.minLength(1, message), z.maxLength(maxLength, messages.tooLong(maxLength)));
+
+/** Trimmed text that may be empty, then at most `maxLength` characters. */
+const optionalText = (maxLength: number) =>
+  z.string().check(z.trim(), z.maxLength(maxLength, messages.tooLong(maxLength)));
+
+/** A value picked from a list the server gave, so only its presence is checked here. */
+const picked = (message: string) => z.string().check(z.minLength(1, message));
 
 export const rules = {
   email: requiredText(messages.emailRequired, EMAIL_MAX_LENGTH).check(z.regex(EMAIL_FORMAT, messages.emailInvalid)),
@@ -53,4 +68,13 @@ export const rules = {
       z.maxLength(SLUG_MAX_LENGTH, messages.slugLength(SLUG_MIN_LENGTH, SLUG_MAX_LENGTH)),
       z.regex(SLUG_FORMAT, messages.slugFormat),
     ),
+  propertyName: requiredText(messages.propertyNameRequired, PROPERTY_NAME_MAX_LENGTH),
+  streetAddress: requiredText(messages.streetAddressRequired, ADDRESS_LINE_MAX_LENGTH),
+  addressLine2: optionalText(ADDRESS_LINE_MAX_LENGTH),
+  city: requiredText(messages.cityRequired, CITY_MAX_LENGTH),
+  postalCode: optionalText(POSTAL_CODE_MAX_LENGTH),
+  /** From `GET /properties/time-zones`; the server checks that the zone is the country's. */
+  countryCode: picked(messages.countryRequired),
+  timeZone: picked(messages.timeZoneRequired),
+  unitName: requiredText(messages.unitNameRequired, UNIT_NAME_MAX_LENGTH),
 };
