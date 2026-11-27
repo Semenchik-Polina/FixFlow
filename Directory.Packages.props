@@ -44,7 +44,7 @@
   <!-- Same servicing release as EF Core: the EF stores pull EF Core Relational, which is pinned above -->
   <ItemGroup Label="Identity">
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Identity.Stores" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Identity.Stores" Version="11.0.0" />
   </ItemGroup>
 
   <!-- SMTP (plan A12). The API gets ValidateDataAnnotations from the shared framework; Infrastructure, which checks
