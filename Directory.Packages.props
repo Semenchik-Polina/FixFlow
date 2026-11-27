@@ -27,7 +27,7 @@
        Npgsql.EntityFrameworkCore.PostgreSQL requires, Azure.Storage.Blobs (T4.x). -->
   <ItemGroup Label="Data and storage clients">
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="11.0.0" />
   </ItemGroup>
 
   <!-- EF Core on the same servicing release as the ASP.NET Core packages. Relational is pinned too, so the provider
