@@ -51,7 +51,7 @@
        SmtpOptions, needs the package: keep it on the Microsoft.Extensions.Options version EF Core brings. -->
   <ItemGroup Label="Email">
     <PackageVersion Include="MailKit" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="11.0.0" />
   </ItemGroup>
 
   <!-- HybridCache, in-process only until Phase 2 adds Redis (plan A7). Its abstraction comes with
